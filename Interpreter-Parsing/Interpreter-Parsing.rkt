@@ -11,14 +11,16 @@
 (define-datatype expression expression?
   [var-exp ;;variable expression
    (id symbol?)]
+  [var-exps
+   (ids list?)]
   [lit-exp ;;literal expression
    (data number?)]
-  [val-expr
-   (id symbol?)
+  [val-exp
+   (id expression?)
    (value expression?)]
   [lambda-exp ;;lambda expression
-   (id list?)
-   (body expression?)]
+   (id expression?)
+   (body list?)]
   [app-exp ;;application expression
    (rator expression?)
    (rand list?)]
@@ -27,11 +29,14 @@
    (if-true expression?)
    (if-else expression?)]
   [let-exp
-   (vars expression?)]
+   (vars expression?)
+   (body list?)]
   [let*-exp
-   (vars expression?)]
+   (vars expression?)
+   (body list?)]
   [letrec-exp
-   (vars expression?)]
+   (vars expression?)
+   (body list?)]
   [set!-exp
    (id symbol?)
    (value expression?)])
@@ -43,9 +48,10 @@
 
 ; Helper Functions
 (define (lambda? expr)
-    (and (= (length expr) 3)
-         (list? (2nd expr))
-         (andmap symbol? (2nd expr))))
+  (and (>= (length expr) 3)
+       (if (list? (2nd expr))
+           (andmap symbol? (2nd expr))
+           (symbol? (2nd expr)))))
 
 (define (app? expr)
     (and (pair? expr)
@@ -72,21 +78,30 @@
   (lambda (expr)
     (error 'parse-exp "parse-error: ~s" expr)))
 
+(define unparse-err
+  (lambda (expr)
+    (error 'unparse-exp "unparse-error: ~s" expr)))
+
 (define (parse-exp expr)
     (cond
       [(empty? expr) '()]
       [(symbol? expr) (var-exp expr)]
       [(number? expr) (lit-exp expr)]
       [(eqv? (1st expr) 'lambda)
-       (if (lambda? expr) (lambda-exp (2nd expr) (parse-exp (3rd expr))) (parse-err expr))]
+       (if (lambda? expr) (lambda-exp
+                           (if (list? (2nd expr))
+                               (var-exps (map (lambda (exp) (parse-exp exp)) (2nd expr)))
+                               (var-exp (2nd expr)))
+                           (map (lambda (exp) (parse-exp exp)) (cddr expr)))
+           (parse-err expr))]
       [(eqv? (1st expr) 'let)
-       (if (let? expr) (let-exp (parse-exp (2nd expr)) (parse-exp (cdr expr)))
+       (if (let? expr) (let-exp (var-exps (map (lambda (exp) (parse-exp exp)) (2nd expr))) (map (lambda (exp) (parse-exp exp)) (cddr expr)))
            (parse-err expr))]
       [(eqv? (1st expr) 'let*)
-       (if (let? expr) (let*-exp (parse-exp (2nd expr)) (parse-exp (cdr expr)))
+       (if (let? expr) (let*-exp (var-exps (map (lambda (exp) (parse-exp exp)) (2nd expr))) (map (lambda (exp) (parse-exp exp)) (cddr expr)))
            (parse-err expr))]
       [(eqv? (1st expr) 'letrec)
-       (if (let? expr) (letrec-exp (parse-exp (2nd expr)) (parse-exp (cdr expr)))
+       (if (let? expr) (letrec-exp (var-exps (map (lambda (exp) (parse-exp exp)) (2nd expr))) (map (lambda (exp) (parse-exp exp)) (cddr expr)))
            (parse-err expr))]
       [(eqv? (1st expr) 'set!)
        (if (set!? expr) (set!-exp (var-exp (2nd expr)) (parse-exp (3rd expr)))
@@ -97,14 +112,26 @@
                        (parse-exp (3rd expr))
                        (parse-exp (cdr expr)))
            (parse-err expr))]
+      [(val-exp? expr) (val-exp (parse-exp (1st expr)) (parse-exp (2nd expr)))]
       [(app? expr) (app-exp (parse-exp (1st expr))
                             (map (lambda (expr) (parse-exp expr)) (cdr expr)))]
       [else (parse-err expr)]))
 
 
-(define unparse-exp
-  (lambda (exp)
-    'nyi))
+(define (unparse-exp expr)
+    (cases expression expr
+      [var-exp (id) id]
+      [var-exps (ids) (map (lambda (exp) (unparse-exp exp)) ids)]
+      [val-exp (id value) (list (unparse-exp id) (unparse-exp value))]
+      [lit-exp (data) data] 
+      [app-exp (rator rand) (cons (unparse-exp rator)
+                                  (map (lambda (exp) (unparse-exp exp)) rand))]
+      [lambda-exp (id body) (cons 'lambda (cons (unparse-exp  id) (map (lambda (exp) (unparse-exp exp)) body)))]
+      [let-exp (vars body) (cons 'let (cons (unparse-exp vars) (map (lambda (exp) (unparse-exp exp)) body)))]
+      [let*-exp (vars body) (cons 'let* (cons (unparse-exp vars) (map (lambda (exp) (unparse-exp exp)) body)))]
+      [letrec-exp (vars body) (cons 'letrec (cons (unparse-exp vars) (map (lambda (exp) (unparse-exp exp)) body)))]
+      [if-exp (bool if-true if-false) (cons 'if (append (unparse-exp bool) (unparse-exp if-true) (unparse-exp if-false)))]
+      [else (unparse-err expr)]))
 
 ; An auxiliary procedure that could be helpful.
 (define var-exp?
