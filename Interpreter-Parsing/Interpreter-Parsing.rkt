@@ -37,7 +37,7 @@
           (if (not (list? (2nd datum))) (error 'parse-exp "parse-error: ~s" datum)
                                         (lambda-exp (2nd datum) (parse-exp (3rd datum)))))]
          [else (app-exp (parse-exp (1st datum))
-                        (map parse-exp (cdr datum)))])]
+                        (parse-exp (cdr datum)))])]
       [else (error 'parse-exp "bad expression: ~s" datum)])))
 
 (define unparse-exp
