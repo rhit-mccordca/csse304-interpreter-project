@@ -110,7 +110,7 @@
        (if (if? expr) (if-exp
                        (parse-exp (2nd expr))
                        (parse-exp (3rd expr))
-                       (parse-exp (cdr expr)))
+                       (parse-exp (cadddr expr)))
            (parse-err expr))]
       [(val-exp? expr) (val-exp (parse-exp (1st expr)) (parse-exp (2nd expr)))]
       [(app? expr) (app-exp (parse-exp (1st expr))
@@ -130,7 +130,7 @@
       [let-exp (vars body) (cons 'let (cons (unparse-exp vars) (map (lambda (exp) (unparse-exp exp)) body)))]
       [let*-exp (vars body) (cons 'let* (cons (unparse-exp vars) (map (lambda (exp) (unparse-exp exp)) body)))]
       [letrec-exp (vars body) (cons 'letrec (cons (unparse-exp vars) (map (lambda (exp) (unparse-exp exp)) body)))]
-      [if-exp (bool if-true if-false) (cons 'if (append (unparse-exp bool) (unparse-exp if-true) (unparse-exp if-false)))]
+      [if-exp (bool if-true if-false) (cons 'if (cons (unparse-exp bool) (cons (unparse-exp if-true) (cons (unparse-exp if-false) '()))))]
       [else (unparse-err expr)]))
 
 ; An auxiliary procedure that could be helpful.
