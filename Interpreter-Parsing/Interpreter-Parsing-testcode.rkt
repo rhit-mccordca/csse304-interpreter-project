@@ -54,7 +54,7 @@
     [(unparse-exp (parse-exp (quote (lambda x x y)))) '(lambda x x y) 1] ; (run-test parse-unparse 8)
     [(unparse-exp (parse-exp (quote (let ((x 1) (y (let () (let ((z t)) z)))) (+ z y))))) '(let ((x 1) (y (let () (let ((z t)) z)))) (+ z y)) 1] ; (run-test parse-unparse 9)
     [(unparse-exp (parse-exp (quote (lambda () (letrec ((foo (lambda (L) (if (null? L) 3 (if (symbol? (car L)) (cons (car L) (foo (cdr L))) (foo (cdr L))))))) foo))))) '(lambda () (letrec ((foo (lambda (L) (if (null? L) 3 (if (symbol? (car L)) (cons (car L) (foo (cdr L))) (foo (cdr L))))))) foo)) 2] ; (run-test parse-unparse 10)
-    ;;[(unparse-exp (parse-exp (quote (lambda (x) (if (boolean? x) '#(1 2 3 4) 1234))))) '(lambda (x) (if (boolean? x) '#(1 2 3 4) 1234)) 1] ; (run-test parse-unparse 11)
+    ;[(unparse-exp (parse-exp (quote (lambda (x) (if (boolean? x) '#(1 2 3 4) 1234))))) '(lambda (x) (if (boolean? x) '#(1 2 3 4) 1234)) 1] ; (run-test parse-unparse 11)
     [(unparse-exp (parse-exp (quote (lambda x (car x))))) '(lambda x (car x)) 1] ; (run-test parse-unparse 12)
     [(unparse-exp (parse-exp (quote (lambda (c) (if (char? c) string 12345))))) '(lambda (c) (if (char? c) string 12345)) 2] ; (run-test parse-unparse 13)
     [(unparse-exp (parse-exp (quote (lambda (datum) (or (number? datum) (boolean? datum) (null? datum) (string? datum) (symbol? datum) (pair? datum) (vector? datum)))))) '(lambda (datum) (or (number? datum) (boolean? datum) (null? datum) (string? datum) (symbol? datum) (pair? datum) (vector? datum))) 2] ; (run-test parse-unparse 14)
