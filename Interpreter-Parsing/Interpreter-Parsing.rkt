@@ -28,6 +28,8 @@
    (bool expression?)
    (if-true expression?)
    (if-else expression?)]
+  [vec-exp
+   (vec vector?)]
   [let-exp
    (vars expression?)
    (body list?)]
@@ -87,6 +89,7 @@
       [(empty? expr) '()]
       [(symbol? expr) (var-exp expr)]
       [(number? expr) (lit-exp expr)]
+      [(vector? expr) (vec-exp expr)]
       [(eqv? (1st expr) 'lambda)
        (if (lambda? expr) (lambda-exp
                            (if (list? (2nd expr))
@@ -123,7 +126,8 @@
       [var-exp (id) id]
       [var-exps (ids) (map (lambda (exp) (unparse-exp exp)) ids)]
       [val-exp (id value) (list (unparse-exp id) (unparse-exp value))]
-      [lit-exp (data) data] 
+      [lit-exp (data) data]
+      [vec-exp (vec) vec]
       [app-exp (rator rand) (cons (unparse-exp rator)
                                   (map (lambda (exp) (unparse-exp exp)) rand))]
       [lambda-exp (id body) (cons 'lambda (cons (unparse-exp  id) (map (lambda (exp) (unparse-exp exp)) body)))]
