@@ -1,6 +1,6 @@
 #lang racket
 
-(require "../chez-init.rkt")
+(require "../chez-init.rkt" racket/trace)
 (provide eval-one-exp)
 
 ;-------------------+
@@ -18,7 +18,7 @@
   [var-exps
    (ids list?)]
   [lit-exp ;;literal expression
-   (data number?)]
+   (data scheme-value?)]
   [val-exp
    (id expression?)
    (value expression?)]
@@ -123,7 +123,11 @@
     (cond
       [(empty? expr) '()]
       [(symbol? expr) (var-exp expr)]
-      [(number? expr) (lit-exp expr)]
+      [(or (vector? expr)
+           (string? expr)
+           (boolean? expr)
+           (number? expr))(lit-exp expr)]
+      [(and (pair? expr) (eqv? (1st expr) 'quote)) (lit-exp (2nd expr))]
       [(eqv? (1st expr) 'lambda)
        (if (lambda? expr) (lambda-exp
                            (if (list? (2nd expr))
@@ -211,7 +215,12 @@
                (let ([proc-value (eval-exp rator)]
                      [args (eval-rands rands)])
                  (apply-proc proc-value args))]
+      [if-exp (bool if-true if-else)
+               (let ([condition (eval-exp bool)])
+                     (if (eqv? condition #f) (eval-exp if-else)
+                                             (eval-exp if-true)))]
       [else (error 'eval-exp "Bad abstract syntax: ~a" exp)])))
+;(trace eval-exp)
 
 ; evaluate the list of operands, putting results into a list
 
