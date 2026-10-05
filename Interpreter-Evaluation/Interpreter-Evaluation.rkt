@@ -236,7 +236,7 @@
                   ;;create new env, env has names of lists of symbols, uses list of evaluated operated values (args), parent env stored in closure
                   ;;havin created, evaluate code of closure in the body (then youre done) (uses one line, not complicated)
                   ;;worst case-> claude video
-      [else (error 'eval-exp "Bad abstract syntax: ~a" exp)])))
+      [else (error 'eval-exp "Bad abstract syntax: ~a" exp)]])))
 ;(trace eval-exp)
 
 ; evaluate the list of operands, putting results into a list
