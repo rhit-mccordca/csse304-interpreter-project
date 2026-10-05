@@ -34,6 +34,9 @@
    (if-else expression?)]
   [let-exp
    (vars expression?)
+   ;symbols not expressions,
+   ;let-exp (vars var-exps bodies)
+   ;vars is list of symbols
    (body list?)]
   [let*-exp
    (vars expression?)
@@ -197,28 +200,42 @@
 ;-------------------+
 
 ; top-level-eval evaluates a form in the global environment
+; creates empty env for eval-exp
 
 (define top-level-eval
   (lambda (form)
     ; later we may add things that are not expressions.
-    (eval-exp form)))
+    (eval-exp (empty-env) form)))
 
 ; eval-exp is the main component of the interpreter
 
 (define eval-exp
-  (lambda (exp)
+  ;;change define to have define contract for env exp
+  (lambda (env exp)
     (cases expression exp
       [lit-exp (datum) datum]
       [var-exp (id)
-               (apply-env init-env id)]
+               (apply-env env id)]
       [app-exp (rator rands)
-               (let ([proc-value (eval-exp rator)]
+               (let ([proc-value (eval-exp env rator)]
                      [args (eval-rands rands)])
                  (apply-proc proc-value args))]
       [if-exp (bool if-true if-else)
-               (let ([condition (eval-exp bool)])
-                     (if (eqv? condition #f) (eval-exp if-else)
-                                             (eval-exp if-true)))]
+               (if (eval-exp env bool) (eval-exp env if-true)
+                                       (eval-exp env if-else))]
+      [let-exp (vars body)
+               (let (new-env (extend-env vars (list (eval-exp env (car var-exps))) env))) ;returns value in environment
+               (eval-exp new-env (car bodies))]
+      ;;lambda is easy??
+      [lambda-exp (id body)
+                  ;;produce closeure data structure
+                  ;;use proc-val
+                  ;;add new proc called closure-proc
+                  ;;stores 3 rectangle slots (list of symbols, list of bodies, env obj)
+                  ;;after invoking, falls into app-exp type then eval rator and rands, then add case to apply-pro using proc-val from before
+                  ;;create new env, env has names of lists of symbols, uses list of evaluated operated values (args), parent env stored in closure
+                  ;;havin created, evaluate code of closure in the body (then youre done) (uses one line, not complicated)
+                  ;;worst case-> claude video
       [else (error 'eval-exp "Bad abstract syntax: ~a" exp)])))
 ;(trace eval-exp)
 
@@ -226,7 +243,7 @@
 
 (define eval-rands
   (lambda (rands)
-    (map eval-exp rands)))
+    (map (lambda (e) (eval-exp env )) rands)))
 
 ;  Apply a procedure to its arguments.
 ;  At this point, we only have primitive procedures.  
@@ -241,12 +258,8 @@
                    "Attempt to apply bad procedure: ~s" 
                    proc-value)])))
 
-
-
 (define init-env         ; you'll want to have a global environment with the prim procs and maybe other stuff
   '())
-
-
 
 (define apply-prim-proc
   (lambda (prim-proc args)
