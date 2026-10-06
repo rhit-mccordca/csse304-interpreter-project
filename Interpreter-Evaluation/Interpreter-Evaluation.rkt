@@ -12,41 +12,58 @@
 ; parsed expression.  You'll probably want to replace this 
 ; code with your expression datatype from A11b
 
+(define (quoted? expr)
+  (and (list? expr)
+       (= 2 (length expr))
+       (eqv? 'quote (car expr))))
+
+(define (literal? expr)
+  (or (number? expr)
+      (string? expr)
+      (boolean? expr)
+      (vector? expr)
+      (quoted? expr)))
+
 (define-datatype expression expression?
-  [var-exp ;;variable expression
+  [lit-exp
+   (data literal?)]
+  [var-exp
    (id symbol?)]
-  [var-exps
-   (ids list?)]
-  [lit-exp ;;literal expression
-   (data scheme-value?)]
-  [val-exp
-   (id expression?)
-   (value expression?)]
-  [lambda-exp ;;lambda expression
-   (id expression?)
-   (body list?)]
-  [app-exp ;;application expression
-   (rator expression?)
-   (rand list?)]
-  [if-exp ;;if expression
-   (bool expression?)
-   (if-true expression?)
-   (if-else expression?)]
+  
+  [lambda-exp
+   (vars (lambda (x)
+           (or (symbol? x) ((list-of? symbol?) x))))
+   (bodies (list-of? expression?))]
+  
+  [if-exp
+   (test-exp expression?)
+   (then-exp expression?)
+   (else-exp expression?)]
+  
   [let-exp
-   (vars expression?)
-   ;symbols not expressions,
-   ;let-exp (vars var-exps bodies)
-   ;vars is list of symbols
-   (body list?)]
+   (vars (list-of? symbol?))
+   (var-exps (list-of? expression?))
+   (bodies (list-of? expression?))]
+  [named-let-exp
+   (name symbol?)
+   (vars (list-of? symbol?))
+   (var-exps (list-of? expression?))
+   (bodies (list-of? expression?))]
   [let*-exp
-   (vars expression?)
-   (body list?)]
+   (vars (list-of? symbol?))
+   (var-exps (list-of? expression?))
+   (bodies (list-of? expression?))]
   [letrec-exp
-   (vars expression?)
-   (body list?)]
-  [set!-exp
+   (vars (list-of? symbol?))
+   (var-exps (list-of? expression?))
+   (bodies (list-of? expression?))]
+  
+  [set-exp
    (id symbol?)
-   (value expression?)])
+   (value expression?)]
+  [app-exp
+   (rator expression?)
+   (rand (list-of? expression?))])
 	
 
 ;; environment type definitions
@@ -67,7 +84,11 @@
 
 (define-datatype proc-val proc-val?
   [prim-proc
-   (name symbol?)])
+   (name symbol?)]
+  [closure-proc
+   (vars (list-of? symbol?))
+   (bodies (list-of? expression?))
+   (env environment?)])
 
   
 ;-------------------+
@@ -81,17 +102,16 @@
 ; You will want to replace this with your parser that includes more expression types, more options for these types, and error-checking.
 
 ; Again, you'll probably want to use your code from A11b
-; Procedures to make the parser a little bit saner.
+
 (define 1st car)
 (define 2nd cadr)
 (define 3rd caddr)
+(define 4th cadddr)
 
-; Helper Functions
 (define (lambda? expr)
-  (and (>= (length expr) 3)
-       (if (list? (2nd expr))
-           (andmap symbol? (2nd expr))
-           (symbol? (2nd expr)))))
+  (let ([vars (2nd expr)][bodies (cddr expr)])
+    (and (or (symbol? vars) ((list-of? symbol?) vars))
+         ((list-of? list?) bodies))))
 
 (define (app? expr)
     (and (pair? expr)
@@ -124,43 +144,81 @@
 
 (define (parse-exp expr)
     (cond
-      [(empty? expr) '()]
       [(symbol? expr) (var-exp expr)]
-      [(or (vector? expr)
-           (string? expr)
-           (boolean? expr)
-           (number? expr))(lit-exp expr)]
-      [(and (pair? expr) (eqv? (1st expr) 'quote)) (lit-exp (2nd expr))]
-      [(eqv? (1st expr) 'lambda)
-       (if (lambda? expr) (lambda-exp
-                           (if (list? (2nd expr))
-                               (var-exps (map (lambda (exp) (parse-exp exp)) (2nd expr)))
-                               (var-exp (2nd expr)))
-                           (map (lambda (exp) (parse-exp exp)) (cddr expr)))
-           (parse-err expr))]
-      [(eqv? (1st expr) 'let)
-       (if (let? expr) (let-exp (var-exps (map (lambda (exp) (parse-exp exp)) (2nd expr))) (map (lambda (exp) (parse-exp exp)) (cddr expr)))
-           (parse-err expr))]
-      [(eqv? (1st expr) 'let*)
-       (if (let? expr) (let*-exp (var-exps (map (lambda (exp) (parse-exp exp)) (2nd expr))) (map (lambda (exp) (parse-exp exp)) (cddr expr)))
-           (parse-err expr))]
-      [(eqv? (1st expr) 'letrec)
-       (if (let? expr) (letrec-exp (var-exps (map (lambda (exp) (parse-exp exp)) (2nd expr))) (map (lambda (exp) (parse-exp exp)) (cddr expr)))
-           (parse-err expr))]
-      [(eqv? (1st expr) 'set!)
-       (if (set!? expr) (set!-exp (var-exp (2nd expr)) (parse-exp (3rd expr)))
-           (parse-err expr))]
-      [(eqv? (1st expr) 'if)
-       (if (if? expr) (if-exp
-                       (parse-exp (2nd expr))
-                       (parse-exp (3rd expr))
-                       (parse-exp (cadddr expr)))
-           (parse-err expr))]
-      [(val-exp? expr) (val-exp (parse-exp (1st expr)) (parse-exp (2nd expr)))]
-      [(app? expr) (app-exp (parse-exp (1st expr))
-                            (map (lambda (expr) (parse-exp expr)) (cdr expr)))]
+      [(literal? expr) (lit-exp expr)]
+      [(pair? expr)
+       (case (1st expr)
+         [(let)
+          (if (symbol? (2nd expr))
+              (let ([name (2nd expr)]
+                    [var-pairs (3rd expr)]
+                    [bodies (cdddr expr)])
+                (named-let-exp name
+                               (map 1st var-pairs)
+                               (map parse-exp (map 2nd var-pairs))
+                               (map parse-exp bodies)))
+              (let ([var-pairs (2nd expr)]
+                    [bodies (cddr expr)])
+                (let-exp (map 1st var-pairs)
+                         (map parse-exp (map 2nd var-pairs))
+                         (map parse-exp bodies))))]
+         [(let*)
+          (let ([var-pairs (2nd expr)]
+                    [bodies (cddr expr)])
+                (let*-exp (map 1st var-pairs)
+                         (map parse-exp (map 2nd var-pairs))
+                         (map parse-exp bodies)))]
+         [(letrec)
+          (let ([var-pairs (2nd expr)]
+                    [bodies (cddr expr)])
+                (letrec-exp (map 1st var-pairs)
+                         (map parse-exp (map 2nd var-pairs))
+                         (map parse-exp bodies)))]
+         [(lambda)
+          (if (lambda? expr)
+              (lambda-exp (2nd expr) (map parse-exp (cddr expr)))
+              (parse-err expr))]
+         [(if)
+           (if-exp
+          (parse-exp (2nd expr))
+          (parse-exp (3rd expr))
+          (parse-exp (4th expr)))]
+         [(set!)
+          (set-exp (2nd expr) (3rd expr))]
+         [else (app-exp (parse-exp (1st expr))
+                        (map parse-exp (cdr expr)))])]
       [else (parse-err expr)]))
-
+          
+      #| [(eqv? (1st expr) 'lambda)
+          (if (lambda? expr) (lambda-exp
+                              (if (list? (2nd expr))
+                                  (var-exps (map (lambda (exp) (parse-exp exp)) (2nd expr)))
+                                  (var-exp (2nd expr)))
+                              (map (lambda (exp) (parse-exp exp)) (cddr expr)))
+              (parse-err expr))]
+         [(eqv? (1st expr) 'let)
+          (if (let? expr) (let-exp (var-exps (map (lambda (exp) (parse-exp exp)) (2nd expr))) (map (lambda (exp) (parse-exp exp)) (cddr expr)))
+              (parse-err expr))]
+         [(eqv? (1st expr) 'let*)
+          (if (let? expr) (let*-exp (var-exps (map (lambda (exp) (parse-exp exp)) (2nd expr))) (map (lambda (exp) (parse-exp exp)) (cddr expr)))
+              (parse-err expr))]
+         [(eqv? (1st expr) 'letrec)
+          (if (let? expr) (letrec-exp (var-exps (map (lambda (exp) (parse-exp exp)) (2nd expr))) (map (lambda (exp) (parse-exp exp)) (cddr expr)))
+              (parse-err expr))]
+         [(eqv? (1st expr) 'set!)
+          (if (set!? expr) (set!-exp (var-exp (2nd expr)) (parse-exp (3rd expr)))
+              (parse-err expr))]
+         [(eqv? (1st expr) 'if)
+          (if (if? expr) (if-exp
+                          (parse-exp (2nd expr))
+                          (parse-exp (3rd expr))
+                          (parse-exp (cadddr expr)))
+              (parse-err expr))]
+         [(val-exp? expr) (val-exp (parse-exp (1st expr)) (parse-exp (2nd expr)))]
+         [(app? expr) (app-exp (parse-exp (1st expr))
+                               (map (lambda (expr) (parse-exp expr)) (cdr expr)))]
+      [else (parse-err expr)]))
+      |#
 
 ;-------------------+
 ;                   |
@@ -172,9 +230,19 @@
 
 (define apply-env
   (lambda (env id)
-    (if (equal? id '+)
-        (prim-proc '+)
-        (error "this is not a real environment implementation"))))
+    (cond [(equal? id '+) (prim-proc '+)]
+          [(equal? id '-) (prim-proc '-)]
+          [(equal? id '*) (prim-proc '*)]
+          [(equal? id '/) (prim-proc '/)]
+          [(equal? id 'add1) (prim-proc 'add1)]
+          [(equal? id 'sub1) (prim-proc 'sub1)]
+          [(equal? id 'cons) (prim-proc 'cons)]
+          [(equal? id '=) (prim-proc '=)]
+          [(equal? id '>=) (prim-proc '>=)]
+          [(equal? id 'car) (prim-proc 'car)]
+          [(equal? id 'cdr) (prim-proc 'cdr)]
+          [(equal? id 'list) (prim-proc 'list)]
+          [else (error "this is not a real environment implementation")])))
 
 ;-----------------------+
 ;                       |
@@ -200,7 +268,6 @@
 ;-------------------+
 
 ; top-level-eval evaluates a form in the global environment
-; creates empty env for eval-exp
 
 (define top-level-eval
   (lambda (form)
@@ -210,40 +277,25 @@
 ; eval-exp is the main component of the interpreter
 
 (define eval-exp
-  ;;change define to have define contract for env exp
   (lambda (env exp)
     (cases expression exp
-      [lit-exp (datum) datum]
+      [lit-exp (data) (if (quoted? data) (2nd data) data)]
       [var-exp (id)
                (apply-env env id)]
+      [lambda-exp (vars bodies) (closure-proc vars bodies env)]
       [app-exp (rator rands)
                (let ([proc-value (eval-exp env rator)]
-                     [args (eval-rands rands)])
+                     [args (eval-rands env rands)])
                  (apply-proc proc-value args))]
-      [if-exp (bool if-true if-else)
-               (if (eval-exp env bool) (eval-exp env if-true)
-                                       (eval-exp env if-else))]
-      [let-exp (vars body)
-               (let (new-env (extend-env vars (list (eval-exp env (car var-exps))) env))) ;returns value in environment
-               (eval-exp new-env (car bodies))]
-      ;;lambda is easy??
-      [lambda-exp (id body)
-                  ;;produce closeure data structure
-                  ;;use proc-val
-                  ;;add new proc called closure-proc
-                  ;;stores 3 rectangle slots (list of symbols, list of bodies, env obj)
-                  ;;after invoking, falls into app-exp type then eval rator and rands, then add case to apply-pro using proc-val from before
-                  ;;create new env, env has names of lists of symbols, uses list of evaluated operated values (args), parent env stored in closure
-                  ;;havin created, evaluate code of closure in the body (then youre done) (uses one line, not complicated)
-                  ;;worst case-> claude video
-      [else (error 'eval-exp "Bad abstract syntax: ~a" exp)]])))
-;(trace eval-exp)
+      [if-exp (test-exp then-exp else-exp)
+              (if (eval-exp env test-exp) (eval-exp env then-exp) (eval-exp env else-exp))]
+      [else (error 'eval-exp "Bad abstract syntax: ~a" exp)])))
 
 ; evaluate the list of operands, putting results into a list
 
 (define eval-rands
-  (lambda (rands)
-    (map (lambda (e) (eval-exp env )) rands)))
+  (lambda (env rands)
+    (map eval-exp env rands)))
 
 ;  Apply a procedure to its arguments.
 ;  At this point, we only have primitive procedures.  
@@ -254,26 +306,38 @@
     (cases proc-val proc-value
       [prim-proc (op) (apply-prim-proc op args)]
       ; You will add other cases
-      [else (error 'apply-proc
-                   "Attempt to apply bad procedure: ~s" 
-                   proc-value)])))
+      [closure-proc (vars bodies env) (map eval-exp env bodies)])))
+      ;;[else (error 'apply-proc
+                  ;; "Attempt to apply bad procedure: ~s" 
+                  ;; proc-value)])))
+
+
 
 (define init-env         ; you'll want to have a global environment with the prim procs and maybe other stuff
   '())
 
+(define empty-env (lambda () (empty-env-record)))
+
 (define apply-prim-proc
   (lambda (prim-proc args)
     (case prim-proc
-      [(+) (+ (first args) (second args))]
-      [(-) (- (first args) (second args))]
-      [(*) (* (first args) (second args))]
+      [(+) (apply + args)]
+      [(-) (apply - args)]
+      [(*) (apply * args)]
+      [(/) (apply / args)]
       [(add1) (+ (first args) 1)]
       [(sub1) (- (first args) 1)]
       [(cons) (cons (first args) (second args))]
       [(=) (= (first args) (second args))]
+      [(>=) (>= (1st args) (2nd args))]
+      [(car) (car (1st args))]
+      [(cdr) (cdr (1st args))]
+      [(list) (apply list args)]
       [else (error 'apply-prim-proc 
                    "Bad primitive procedure name: ~s" 
                    prim-proc)])))
+
+(trace apply-prim-proc)
 
 (define rep      ; "read-eval-print" loop.
   (lambda ()
