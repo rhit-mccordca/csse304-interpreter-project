@@ -83,7 +83,7 @@
 ; kind of procedure, but more kinds will be added later.
 
 (define (prim-proc? sym)
-  (let ([prim-procs '(+ - * / add1 sub1 cons >= = car cadr list)])
+  (let ([prim-procs '(+ - * / add1 sub1 cons >= = car cadr list zero?)])
     (ormap (lambda (proc) (eqv? sym proc)) prim-procs)))
 
 (define-datatype proc-val proc-val?
@@ -115,7 +115,7 @@
 (define (lambda? expr)
   (let ([vars (2nd expr)][bodies (cddr expr)])
     (and (or (symbol? vars) ((list-of? symbol?) vars))
-         ((list-of? list?) bodies))))
+         (or ((list-of? list?) bodies) ((list-of? symbol?) bodies)))))
 
 (define (app? expr)
     (and (pair? expr)
@@ -249,7 +249,8 @@
   (lambda (env sym)
     (cases environment env
       [empty-env-record ()
-                        (apply-global-env sym)]
+                       (apply-global-env sym)]
+                       ;(error "this is not a real environment implementation")]
       [extended-env-record (syms vals env)
                            (let ([pos (list-find-position sym syms)])
                              (if (number? pos)
@@ -323,11 +324,11 @@
       ; You will add other cases
       [closure-proc (vars bodies env)
                     (let ([new-env (extend-env vars args env)])
-                      (map (lambda (body) (eval-exp new-env body)) bodies))]
+                      (last (map (lambda (body) (eval-exp new-env body)) bodies)))]
       [else (error 'apply-proc
                   "Attempt to apply bad procedure: ~s" 
                    proc-value)])))
-(trace apply-proc eval-rands eval-exp)
+;(trace apply-proc eval-rands eval-exp)
 
 
 
@@ -357,6 +358,7 @@
       [(car) (car (1st args))]
       [(cdr) (cdr (1st args))]
       [(list) (apply list args)]
+      [(zero?) (zero? (car args))]
       [else (error 'apply-prim-proc 
                    "Bad primitive procedure name: ~s" 
                    prim-proc)])))
