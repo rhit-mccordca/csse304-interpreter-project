@@ -228,6 +228,14 @@
 
 ; Pick your favorite representation based on the lecture
 
+(define list-find-position
+  (lambda (sym los)
+    (let loop ([los los] [pos 0])
+      (cond ([(null? los) #f]
+             [(eq? sym (car los)) pos]
+             [else (loop (cdr los) (add1 pos))])))))
+                        
+
 (define apply-env
   (lambda (env id)
     (cond [(equal? id '+) (prim-proc '+)]
@@ -337,7 +345,7 @@
                    "Bad primitive procedure name: ~s" 
                    prim-proc)])))
 
-(trace apply-prim-proc)
+;(trace apply-prim-proc)
 
 (define rep      ; "read-eval-print" loop.
   (lambda ()
