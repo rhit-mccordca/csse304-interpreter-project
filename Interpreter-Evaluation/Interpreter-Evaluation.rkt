@@ -82,6 +82,10 @@
 ; datatype for procedures.  At first there is only one
 ; kind of procedure, but more kinds will be added later.
 
+(define (prim-proc? sym)
+  (let ([prim-procs '(+ - * / add1 sub1 cons >= = car cadr list)])
+    (ormap (lambda (proc) (eqv? sym proc)) prim-procs)))
+
 (define-datatype proc-val proc-val?
   [prim-proc
    (name symbol?)]
@@ -231,26 +235,26 @@
 (define list-find-position
   (lambda (sym los)
     (let loop ([los los] [pos 0])
-      (cond ([(null? los) #f]
-             [(eq? sym (car los)) pos]
-             [else (loop (cdr los) (add1 pos))])))))
-                        
+      (cond [(null? los) #f]
+            [(eq? sym (car los)) pos]
+            [else (loop (cdr los) (add1 pos))]))))
+
+(define apply-global-env
+  (lambda (sym)
+    (if (prim-proc? sym)
+        (prim-proc sym)
+        (error "this is not a real environment implementation"))))
 
 (define apply-env
-  (lambda (env id)
-    (cond [(equal? id '+) (prim-proc '+)]
-          [(equal? id '-) (prim-proc '-)]
-          [(equal? id '*) (prim-proc '*)]
-          [(equal? id '/) (prim-proc '/)]
-          [(equal? id 'add1) (prim-proc 'add1)]
-          [(equal? id 'sub1) (prim-proc 'sub1)]
-          [(equal? id 'cons) (prim-proc 'cons)]
-          [(equal? id '=) (prim-proc '=)]
-          [(equal? id '>=) (prim-proc '>=)]
-          [(equal? id 'car) (prim-proc 'car)]
-          [(equal? id 'cdr) (prim-proc 'cdr)]
-          [(equal? id 'list) (prim-proc 'list)]
-          [else (error "this is not a real environment implementation")])))
+  (lambda (env sym)
+    (cases environment env
+      [empty-env-record ()
+                        (apply-global-env sym)]
+      [extended-env-record (syms vals env)
+                           (let ([pos (list-find-position sym syms)])
+                             (if (number? pos)
+                                 (list-ref vals pos)
+                                 (apply-env env sym)))])))
 
 ;-----------------------+
 ;                       |
@@ -299,11 +303,14 @@
               (if (eval-exp env test-exp) (eval-exp env then-exp) (eval-exp env else-exp))]
       [else (error 'eval-exp "Bad abstract syntax: ~a" exp)])))
 
+;;(trace eval-exp)
+
 ; evaluate the list of operands, putting results into a list
 
 (define eval-rands
   (lambda (env rands)
-    (map eval-exp env rands)))
+    (map (lambda (rand) (eval-exp env rand)) rands)))
+;;(trace eval-rands)
 
 ;  Apply a procedure to its arguments.
 ;  At this point, we only have primitive procedures.  
@@ -314,17 +321,26 @@
     (cases proc-val proc-value
       [prim-proc (op) (apply-prim-proc op args)]
       ; You will add other cases
-      [closure-proc (vars bodies env) (map eval-exp env bodies)])))
-      ;;[else (error 'apply-proc
-                  ;; "Attempt to apply bad procedure: ~s" 
-                  ;; proc-value)])))
+      [closure-proc (vars bodies env)
+                    (let ([new-env (extend-env vars args env)])
+                      (map (lambda (body) (eval-exp new-env body)) bodies))]
+      [else (error 'apply-proc
+                  "Attempt to apply bad procedure: ~s" 
+                   proc-value)])))
+(trace apply-proc eval-rands eval-exp)
 
 
 
 (define init-env         ; you'll want to have a global environment with the prim procs and maybe other stuff
   '())
 
-(define empty-env (lambda () (empty-env-record)))
+(define empty-env
+  (lambda ()
+    (empty-env-record)))
+
+(define extend-env
+  (lambda (syms vals env)
+    (extended-env-record syms vals env)))
 
 (define apply-prim-proc
   (lambda (prim-proc args)
