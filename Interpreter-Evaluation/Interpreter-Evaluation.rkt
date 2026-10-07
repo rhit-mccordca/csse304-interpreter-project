@@ -63,7 +63,10 @@
    (value expression?)]
   [app-exp
    (rator expression?)
-   (rand (list-of? expression?))])
+   (rand (list-of? expression?))]
+
+  [begin-exp
+    (bodies (list-of? expression?))])
 	
 
 ;; environment type definitions
@@ -139,7 +142,11 @@
 (define (set!? expr)
   (and (= (length expr) 3)
        (symbol? (2nd expr))))
-
+  
+(define (begin? expr)
+  (and (>= (length expr) 2)
+       (list? expr)))
+   
 (define parse-err
   (lambda (expr)
     (error 'parse-exp "parse-error: ~s" expr)))
@@ -183,6 +190,10 @@
          [(lambda)
           (if (lambda? expr)
               (lambda-exp (2nd expr) (map parse-exp (cddr expr)))
+              (parse-err expr))]
+          [(begin)
+          (if (begin? expr)
+              (begin-exp (map parse-exp (cdr expr)))
               (parse-err expr))]
          [(if)
            (if-exp
@@ -275,6 +286,8 @@
                  (apply-proc proc-value args))]
       [if-exp (test-exp then-exp else-exp)
               (if (eval-exp env test-exp) (eval-exp env then-exp) (eval-exp env else-exp))]
+      [begin-exp (bodies)
+                (last (map (lambda (body) (eval-exp env body)) bodies))]
       [else (error 'eval-exp "Bad abstract syntax: ~a" exp)])))
 
 ;;(trace eval-exp)
