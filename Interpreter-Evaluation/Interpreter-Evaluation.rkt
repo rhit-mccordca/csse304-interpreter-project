@@ -83,7 +83,9 @@
 ; kind of procedure, but more kinds will be added later.
 
 (define (prim-proc? sym)
-  (let ([prim-procs '(+ - * / add1 sub1 cons >= = car cadr list zero?)])
+  (let ([prim-procs '(+ - * / add1 sub1 cons >= = car cdr list zero? null? procedure? assq eq? equal? atom? length list->vector not
+                     list? pair? procedure? vector->list vector make-vector vector-ref vector? number? symbol? vector-set! display newline
+                     caar cadr cadar)])
     (ormap (lambda (proc) (eqv? sym proc)) prim-procs)))
 
 (define-datatype proc-val proc-val?
@@ -193,36 +195,7 @@
                         (map parse-exp (cdr expr)))])]
       [else (parse-err expr)]))
           
-      #| [(eqv? (1st expr) 'lambda)
-          (if (lambda? expr) (lambda-exp
-                              (if (list? (2nd expr))
-                                  (var-exps (map (lambda (exp) (parse-exp exp)) (2nd expr)))
-                                  (var-exp (2nd expr)))
-                              (map (lambda (exp) (parse-exp exp)) (cddr expr)))
-              (parse-err expr))]
-         [(eqv? (1st expr) 'let)
-          (if (let? expr) (let-exp (var-exps (map (lambda (exp) (parse-exp exp)) (2nd expr))) (map (lambda (exp) (parse-exp exp)) (cddr expr)))
-              (parse-err expr))]
-         [(eqv? (1st expr) 'let*)
-          (if (let? expr) (let*-exp (var-exps (map (lambda (exp) (parse-exp exp)) (2nd expr))) (map (lambda (exp) (parse-exp exp)) (cddr expr)))
-              (parse-err expr))]
-         [(eqv? (1st expr) 'letrec)
-          (if (let? expr) (letrec-exp (var-exps (map (lambda (exp) (parse-exp exp)) (2nd expr))) (map (lambda (exp) (parse-exp exp)) (cddr expr)))
-              (parse-err expr))]
-         [(eqv? (1st expr) 'set!)
-          (if (set!? expr) (set!-exp (var-exp (2nd expr)) (parse-exp (3rd expr)))
-              (parse-err expr))]
-         [(eqv? (1st expr) 'if)
-          (if (if? expr) (if-exp
-                          (parse-exp (2nd expr))
-                          (parse-exp (3rd expr))
-                          (parse-exp (cadddr expr)))
-              (parse-err expr))]
-         [(val-exp? expr) (val-exp (parse-exp (1st expr)) (parse-exp (2nd expr)))]
-         [(app? expr) (app-exp (parse-exp (1st expr))
-                               (map (lambda (expr) (parse-exp expr)) (cdr expr)))]
-      [else (parse-err expr)]))
-      |#
+      
 
 ;-------------------+
 ;                   |
@@ -328,9 +301,6 @@
       [else (error 'apply-proc
                   "Attempt to apply bad procedure: ~s" 
                    proc-value)])))
-;(trace apply-proc eval-rands eval-exp)
-
-
 
 (define init-env         ; you'll want to have a global environment with the prim procs and maybe other stuff
   '())
@@ -350,18 +320,44 @@
       [(-) (apply - args)]
       [(*) (apply * args)]
       [(/) (apply / args)]
-      [(add1) (+ (first args) 1)]
-      [(sub1) (- (first args) 1)]
-      [(cons) (cons (first args) (second args))]
-      [(=) (= (first args) (second args))]
+      [(add1) (+ (1st args) 1)]
+      [(sub1) (- (1st args) 1)]
+      [(cons) (cons (1st args) (2nd args))]
+      [(=) (= (1st args) (2nd args))]
       [(>=) (>= (1st args) (2nd args))]
+      [(not) (apply not args)]
       [(car) (car (1st args))]
       [(cdr) (cdr (1st args))]
+      [(caar) (caar (1st args))]
+      [(cadr) (cadr (1st args))]
+      [(cadar) (cadar (1st args))]
       [(list) (apply list args)]
-      [(zero?) (zero? (car args))]
+      [(zero?) (zero? (1st args))]
+      [(assq) (assq (1st args) (2nd args))]
+      [(null?) (null? (1st args))]
+      [(eq?) (eq? (1st args) (2nd args))]
+      [(equal?) (equal? (1st args) (2nd args))]
+      [(atom?) (apply (not (pair?)) args)]
+      [(length) (apply length args)]
+      [(list->vector) (apply list->vector args)]
+      [(list?) (apply list? args)]
+      [(pair?) (apply pair? args)]
+      [(procedure?) (proc-val? (1st args))]
+      [(vector->list) (apply vector->list args)]
+      [(vector) (apply vector args)]
+      [(make-vector) (make-vector (1st args))]
+      [(vector-ref) (vector-ref (1st args) (2nd args))]
+      [(vector?) (apply vector? args)]
+      [(number?) (apply number? args)]
+      [(symbol?) (apply symbol? args)]
+      [(vector-set!) (vector-set! (1st args) (2nd args) (caddr args))]
+      [(display) (display (1st args))]
+      [(newline) (newline)]
       [else (error 'apply-prim-proc 
                    "Bad primitive procedure name: ~s" 
                    prim-proc)])))
+
+;;(trace apply-proc eval-exp eval-rands apply-env apply-prim-proc)
 
 ;(trace apply-prim-proc)
 
