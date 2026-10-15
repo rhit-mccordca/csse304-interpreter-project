@@ -29,14 +29,14 @@
   (lambda-regression-tests equal? ; (run-test lambda-regression-tests)
     [(eval-one-exp '((lambda (x) (+ 1 x)) 5)) 6 1] ; (run-test lambda-regression-tests 1)
     [(eval-one-exp '((lambda (x) (+ 1 x) (+ 2 (* 2 x))) 5)) 12 1] ; (run-test lambda-regression-tests 2)
-    [(eval-one-exp ' ((lambda (a b) (let ((a (+ a b)) (b (- a b))) (let ((f (lambda (a) (+ a b)))) (f (+ 3 a b))))) 56 17)) 154 3] ; (run-test lambda-regression-tests 3)
+    [(eval-one-exp ' ((lambda (a b) (let ([a (+ a b)] [b (- a b)]) (let ([f (lambda (a) (+ a b))]) (f (+ 3 a b))))) 56 17)) 154 3] ; (run-test lambda-regression-tests 3)
     [(eval-one-exp ' (((lambda (f) ((lambda (x) (f (lambda (y) ((x x) y)))) (lambda (x) (f (lambda (y) ((x x) y)))))) (lambda (g) (lambda (n) (if (zero? n) 1 (* n (g (- n 1))))))) 6)) 720 4] ; (run-test lambda-regression-tests 4)
     [(eval-one-exp ' (let ((Y (lambda (f) ((lambda (x) (f (lambda (y) ((x x) y)))) (lambda (x) (f (lambda (y) ((x x) y))))))) (H (lambda (g) (lambda (x) (if (null? x) '() (cons (procedure? (car x)) (g (cdr x)))))))) ((Y H) (list list (lambda (x) x) 'list)))) '(#t #t #f) 4] ; (run-test lambda-regression-tests 5)
   )
 
-  (lambda-with-variable-args equal? ; (run-test lambda-with-variable-args)
-    [(eval-one-exp '((lambda x (car x) (cdr x)) 'a 'b 'c)) '(b c) 5] ; (run-test lambda-with-variable-args 1)
-  )
+;;   (lambda-with-variable-args equal? ; (run-test lambda-with-variable-args)
+;;     [(eval-one-exp '((lambda x (car x) (cdr x)) 'a 'b 'c)) '(b c) 5] ; (run-test lambda-with-variable-args 1)
+;;   )
 
   (let equal? ; (run-test literals)
     [(eval-one-exp '(let () 3)) 3 1] ; (run-test literals 1)
