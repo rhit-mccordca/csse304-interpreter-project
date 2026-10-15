@@ -3,20 +3,18 @@
 (require "../chez-init.rkt" racket/trace)
 (provide eval-one-exp)
 
-(provide add-macro-interpreter)
-(define add-macro-interpreter (lambda x (error "nyi")))
-(provide quasiquote-enabled?)
-(define quasiquote-enabled?
-         (lambda () (error "nyi"))) ; make this return 'yes if you're trying quasiquote
-
 ;-------------------+
-;                   |
-;   sec:DATATYPES   |
-;                   |
+; General Helpers   |
 ;-------------------+
 
-; parsed expression.  You'll probably want to replace this 
-; code with your expression datatype from A11b
+(define 1st car)
+(define 2nd cadr)
+(define 3rd caddr)
+(define 4th cadddr)
+
+;-------------------+
+; Datatype Helpers  |
+;-------------------+
 
 (define (quoted? expr)
   (and (list? expr)
@@ -29,6 +27,17 @@
       (boolean? expr)
       (vector? expr)
       (quoted? expr)))
+
+(define (prim-proc? sym)
+  (let ([prim-procs '(+ - * / add1 sub1 cons >= = car cdr list zero? null? procedure? assq eq? equal? atom? length list->vector not
+                        list? pair? procedure? vector->list vector make-vector vector-ref vector? number? symbol? vector-set! display newline
+                        caar cadr cadar map apply and)])
+    (ormap (lambda (proc) (eqv? sym proc)) prim-procs)))
+
+;-------------------+
+;    Datatype       |
+;    Definitions    |
+;-------------------+
 
 (define-datatype expression expression?
   [lit-exp
@@ -73,29 +82,6 @@
 
   [begin-exp
     (bodies (list-of? expression?))])
-	
-
-;; environment type definitions
-
-(define scheme-value?
-  (lambda (x) #t))
-  
-(define-datatype environment environment?
-  [empty-env-record]
-  [extended-env-record
-   (syms (list-of? symbol?))
-   (vals (list-of? scheme-value?))
-   (env environment?)])
-
-
-; datatype for procedures.  At first there is only one
-; kind of procedure, but more kinds will be added later.
-
-(define (prim-proc? sym)
-  (let ([prim-procs '(+ - * / add1 sub1 cons >= = car cdr list zero? null? procedure? assq eq? equal? atom? length list->vector not
-                     list? pair? procedure? vector->list vector make-vector vector-ref vector? number? symbol? vector-set! display newline
-                     caar cadr cadar map apply)])
-    (ormap (lambda (proc) (eqv? sym proc)) prim-procs)))
 
 (define-datatype proc-val proc-val?
   [prim-proc
@@ -106,23 +92,9 @@
    (bodies (list-of? expression?))
    (env environment?)])
 
-  
 ;-------------------+
-;                   |
-;    sec:PARSER     |
-;                   |
+; Parser Helpers    |
 ;-------------------+
-
-; This is a parser for simple Scheme expressions, such as those in EOPL 3.1 thru 3.3.
-
-; You will want to replace this with your parser that includes more expression types, more options for these types, and error-checking.
-
-; Again, you'll probably want to use your code from A11b
-
-(define 1st car)
-(define 2nd cadr)
-(define 3rd caddr)
-(define 4th cadddr)
 
 (define (lambda? expr)
   (let ([vars (2nd expr)][bodies (cddr expr)])
@@ -130,11 +102,11 @@
          (or (literal? bodies) (symbol? bodies) ((list-of? list?) bodies) ((list-of? symbol?) bodies) ((list-of? literal?) bodies)))))
 
 (define (app? expr)
-    (and (pair? expr)
-         (list? expr)))
+  (and (pair? expr)
+       (list? expr)))
 
 (define (if? expr)
-    (and (= (length expr) 4)))
+  (and (= (length expr) 4)))
 
 (define (val-exp? expr)
   (and (list? expr)
@@ -153,75 +125,99 @@
 (define (begin? expr)
   (and (>= (length expr) 2)
        (list? expr)))
+
+;-------------------+
+;   Error Helpers   |
+;-------------------+
    
 (define parse-err
   (lambda (expr)
     (error 'parse-exp "parse-error: ~s" expr)))
 
-(define unparse-err
-  (lambda (expr)
-    (error 'unparse-exp "unparse-error: ~s" expr)))
+(define env-err
+  (lambda (env)
+    (error 'apply-global-env "this is not a real environment implementation: ~s" env)))
+
+;-------------------+
+;     Parser        |
+;-------------------+
 
 (define (parse-exp expr)
-    (cond
-      [(symbol? expr) (var-exp expr)]
-      [(literal? expr) (lit-exp expr)]
-      [(pair? expr)
-       (case (1st expr)
-         [(let)
-          (if (symbol? (2nd expr))
-              (let ([name (2nd expr)]
-                    [var-pairs (3rd expr)]
-                    [bodies (cdddr expr)])
-                (named-let-exp name
-                               (map 1st var-pairs)
-                               (map parse-exp (map 2nd var-pairs))
-                               (map parse-exp bodies)))
-              (let ([var-pairs (2nd expr)]
-                    [bodies (cddr expr)])
-                (let-exp (map 1st var-pairs)
-                         (map parse-exp (map 2nd var-pairs))
-                         (map parse-exp bodies))))]
-         [(let*)
-          (let ([var-pairs (2nd expr)]
-                    [bodies (cddr expr)])
-                (let*-exp (map 1st var-pairs)
-                         (map parse-exp (map 2nd var-pairs))
-                         (map parse-exp bodies)))]
-         [(letrec)
-          (let ([var-pairs (2nd expr)]
-                    [bodies (cddr expr)])
-                (letrec-exp (map 1st var-pairs)
-                         (map parse-exp (map 2nd var-pairs))
-                         (map parse-exp bodies)))]
-         [(lambda)
-          (if (lambda? expr)
-              (lambda-exp (2nd expr) (map parse-exp (cddr expr)))
-              (parse-err expr))]
-          [(begin)
-          (if (begin? expr)
-              (begin-exp (map parse-exp (cdr expr)))
-              (parse-err expr))]
-         [(if)
-           (if-exp
-          (parse-exp (2nd expr))
-          (parse-exp (3rd expr))
-          (parse-exp (4th expr)))]
-         [(set!)
-          (set-exp (2nd expr) (3rd expr))]
-         [else (app-exp (parse-exp (1st expr))
-                        (map parse-exp (cdr expr)))])]
-      [else (parse-err expr)]))
+  (cond
+    [(symbol? expr) (var-exp expr)]
+    [(literal? expr) (lit-exp expr)]
+    [(pair? expr)
+     (case (1st expr)
+       [(let)
+        (if (symbol? (2nd expr))
+            (let ([name (2nd expr)]
+                  [var-pairs (3rd expr)]
+                  [bodies (cdddr expr)])
+              (named-let-exp name
+                             (map 1st var-pairs)
+                             (map parse-exp (map 2nd var-pairs))
+                             (map parse-exp bodies)))
+            (let ([var-pairs (2nd expr)]
+                  [bodies (cddr expr)])
+              (let-exp (map 1st var-pairs)
+                       (map parse-exp (map 2nd var-pairs))
+                       (map parse-exp bodies))))]
+       [(let*)
+        (let ([var-pairs (2nd expr)]
+              [bodies (cddr expr)])
+          (let*-exp (map 1st var-pairs)
+                    (map parse-exp (map 2nd var-pairs))
+                    (map parse-exp bodies)))]
+       [(letrec)
+        (let ([var-pairs (2nd expr)]
+              [bodies (cddr expr)])
+          (letrec-exp (map 1st var-pairs)
+                      (map parse-exp (map 2nd var-pairs))
+                      (map parse-exp bodies)))]
+       [(lambda)
+        (if (lambda? expr)
+            (lambda-exp (2nd expr) (map parse-exp (cddr expr)))
+            (parse-err expr))]
+       [(begin)
+        (if (begin? expr)
+            (begin-exp (map parse-exp (cdr expr)))
+            (parse-err expr))]
+       [(if)
+        (if-exp
+         (parse-exp (2nd expr))
+         (parse-exp (3rd expr))
+         (parse-exp (4th expr)))]
+       [(set!)
+        (set-exp (2nd expr) (3rd expr))]
+       [else (app-exp (parse-exp (1st expr))
+                      (map parse-exp (cdr expr)))])]
+    [else (parse-err expr)]))
           
       
-
 ;-------------------+
-;                   |
-; sec:ENVIRONMENTS  |
-;                   |
+;   Environments    |
 ;-------------------+
 
-; Pick your favorite representation based on the lecture
+(define scheme-value?
+  (lambda (x) #t))
+
+;; Environment Datatype Declarations
+
+(define-datatype environment environment?
+  [empty-env-record]
+  [extended-env-record
+   (syms (list-of? symbol?))
+   (vals (list-of? scheme-value?))
+   (env environment?)])
+
+;; Environment Initializations
+
+(define init-env '())
+
+(define empty-env
+  (lambda () (empty-env-record)))
+
+;; Environment Helpers
 
 (define list-find-position
   (lambda (sym los)
@@ -230,31 +226,44 @@
             [(eq? sym (car los)) pos]
             [else (loop (cdr los) (add1 pos))]))))
 
+;; Exvironment Applications
+
 (define apply-global-env
-  (lambda (sym)
+  (lambda (env sym)
     (if (prim-proc? sym)
         (prim-proc sym)
-        (error "this is not a real environment implementation"))))
+        (env-err env))))
 
 (define apply-env
   (lambda (env sym)
     (cases environment env
       [empty-env-record ()
-                       (apply-global-env sym)]
+                        (apply-global-env env sym)]
       [extended-env-record (syms vals env)
                            (let ([pos (list-find-position sym syms)])
                              (if (number? pos)
                                  (list-ref vals pos)
                                  (apply-env env sym)))])))
-;(trace apply-env apply-global-env)
+
+(define extend-env
+  (lambda (syms vals env)
+    (extended-env-record syms vals env)))
 
 ;-----------------------+
-;                       |
-;  sec:SYNTAX EXPANSION |
-;                       |
+;  Syntax Expansion     |
 ;-----------------------+
 
-; To be added in assignment 14.
+(define syntax-expand
+  (lambda (exp)
+    (cases expression exp
+      [var-exp (symbol) exp]
+      [lit-exp (literal) exp]
+      [and-exp (exps)
+               (cond [(null? exps) (lit-exp #t)]
+                     [(null? (cdr exps)) (syntax-expand (car exps))]
+                     [else (if-exp (syntax-expand (car exps))
+                                   (syntax-expand (and-exp (cdr exps)))
+                                   (lit-exp #f))])])))
 
 ;---------------------------------------+
 ;                                       |
@@ -264,85 +273,21 @@
 
 ; To be added in assignment 18a.
 
-
 ;-------------------+
-;                   |
-;  sec:INTERPRETER  |
-;                   |
+;    Procedure      |
+;    Applications   |
 ;-------------------+
-
-; top-level-eval evaluates a form in the global environment
-
-(define top-level-eval
-  (lambda (form)
-    ; later we may add things that are not expressions.
-    (eval-exp (empty-env) form)))
-
-; eval-exp is the main component of the interpreter
-
-(define eval-exp
-  (lambda (env exp)
-    (cases expression exp
-      [lit-exp (data) (if (quoted? data) (2nd data) data)]
-      [var-exp (id)
-               (apply-env env id)]
-      [lambda-exp (vars bodies) (closure-proc vars bodies env)]
-      [let-exp (vars var-exps bodies)
-               (let ([var-vals (map (lambda (x) (eval-exp env x)) var-exps)])
-                 (let ([new-env (extend-env vars var-vals env)])
-                   (last (map (lambda (body) (eval-exp new-env body)) bodies))))]
-      [let*-exp (vars var-exps bodies)
-               (let loop ([env env] [vars vars] [var-exps var-exps])
-                 (if (empty? var-exps)
-                     (last (map (lambda (body) (eval-exp env body)) bodies))
-                     (let ([var-val (eval-exp env (1st var-exps))])
-                       (loop (extend-env (list (1st vars)) (list var-val) env) (cdr vars) (cdr var-exps)))))]
-                
-      [app-exp (rator rands)
-               (let ([proc-value (eval-exp env rator)]
-                     [args (eval-rands env rands)])
-                 (apply-proc proc-value args))]
-      [if-exp (test-exp then-exp else-exp)
-              (if (eval-exp env test-exp) (eval-exp env then-exp) (eval-exp env else-exp))]
-      [begin-exp (bodies)
-                (last (map (lambda (body) (eval-exp env body)) bodies))]
-      [else (error 'eval-exp "Bad abstract syntax: ~a" exp)])))
-
-;;(trace eval-exp)
-
-; evaluate the list of operands, putting results into a list
-
-(define eval-rands
-  (lambda (env rands)
-    (map (lambda (rand) (eval-exp env rand)) rands)))
-;;(trace eval-rands)
-
-;  Apply a procedure to its arguments.
-;  At this point, we only have primitive procedures.  
-;  User-defined procedures will be added later.
 
 (define apply-proc
   (lambda (proc-value args)
     (cases proc-val proc-value
       [prim-proc (op) (apply-prim-proc op args)]
-      ; You will add other cases
       [closure-proc (vars bodies env)
                     (let ([new-env (extend-env vars args env)])
                       (last (map (lambda (body) (eval-exp new-env body)) bodies)))]
       [else (error 'apply-proc
-                  "Attempt to apply bad procedure: ~s" 
+                   "Attempt to apply bad procedure: ~s" 
                    proc-value)])))
-
-(define init-env         ; you'll want to have a global environment with the prim procs and maybe other stuff
-  '())
-
-(define empty-env
-  (lambda ()
-    (empty-env-record)))
-
-(define extend-env
-  (lambda (syms vals env)
-    (extended-env-record syms vals env)))
 
 (define apply-prim-proc
   (lambda (prim-proc args)
@@ -386,22 +331,77 @@
       [(newline) (newline)]
       [(map) (map (lambda (elem) (apply-proc (1st args) elem)) (2nd args))]
       [(apply) (apply-proc (1st args) (2nd args))]
+      [(and) (and args)]
       [else (error 'apply-prim-proc 
                    "Bad primitive procedure name: ~s" 
                    prim-proc)])))
 
-;(trace apply-proc eval-exp eval-rands apply-env apply-prim-proc)
+;-------------------+
+;    Interpreter    |
+;-------------------+
 
-;(trace apply-prim-proc)
+(define eval-exp
+  (lambda (env exp)
+    (cases expression exp
+      [lit-exp (data) (if (quoted? data) (2nd data) data)]
+      [var-exp (id)
+               (apply-env env id)]
+      [lambda-exp (vars bodies) (closure-proc vars bodies env)]
+      [let-exp (vars var-exps bodies)
+               (let ([var-vals (map (lambda (x) (eval-exp env x)) var-exps)])
+                 (let ([new-env (extend-env vars var-vals env)])
+                   (last (map (lambda (body) (eval-exp new-env body)) bodies))))]
+      [let*-exp (vars var-exps bodies)
+                (let loop ([env env] [vars vars] [var-exps var-exps])
+                  (if (empty? var-exps)
+                      (last (map (lambda (body) (eval-exp env body)) bodies))
+                      (let ([var-val (eval-exp env (1st var-exps))])
+                        (loop (extend-env (list (1st vars)) (list var-val) env) (cdr vars) (cdr var-exps)))))]
+                
+      [app-exp (rator rands)
+               (let ([proc-value (eval-exp env rator)]
+                     [args (eval-rands env rands)])
+                 (apply-proc proc-value args))]
+      [if-exp (test-exp then-exp else-exp)
+              (if (eval-exp env test-exp) (eval-exp env then-exp) (eval-exp env else-exp))]
+      [begin-exp (bodies)
+                 (last (map (lambda (body) (eval-exp env body)) bodies))]
+      [else (error 'eval-exp "Bad abstract syntax: ~a" exp)])))
 
-(define rep      ; "read-eval-print" loop.
-  (lambda ()
-    (display "--> ")
-    ;; notice that we don't save changes to the environment...
-    (let ([answer (top-level-eval (parse-exp (read)))])
-      ;; TODO: are there answers that should display differently?
-      (pretty-print answer) (newline)
-      (rep))))  ; tail-recursive, so stack doesn't grow.
+;-------------------+
+; Macro Interpreter |
+;-------------------+
+
+(provide add-macro-interpreter)
+(define add-macro-interpreter (lambda x (error "nyi")))
+(provide quasiquote-enabled?)
+(define quasiquote-enabled?
+  (lambda () (error "nyi"))) ; make this return 'yes if you're trying quasiquote
+
+;-------------------+
+;    Evaluation     |
+;    Procedures     |
+;-------------------+
+
+(define top-level-eval
+  (lambda (form)
+    (eval-exp (empty-env) form)))
+
+(define eval-rands
+  (lambda (env rands)
+    (map (lambda (rand) (eval-exp env rand)) rands)))
 
 (define eval-one-exp
-  (lambda (x) (top-level-eval (parse-exp x))))
+  (lambda (x) (top-level-eval (syntax-expand (parse-exp x)))))
+
+;-------------------+
+;  Read-Eval-Print  |
+;-------------------+
+
+(define rep
+  (lambda ()
+    (display "--> ")
+    (let ([answer (top-level-eval (parse-exp (read)))])
+      (pretty-print answer) (newline)
+      (rep))))
+
