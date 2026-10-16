@@ -217,8 +217,11 @@
             (lit-exp (void))
             (begin-exp (map parse-exp (cdr expr))))]
        [(cond)
-        (cond-exp (map (lambda (exp) (parse-exp (car exp))) (cdr expr))
-                  (map (lambda (exp) (map parse-exp (cdr exp))) (cdr expr)))]
+        (cond-exp (map (lambda (exp) (if (eq? (car exp) 'else)
+                                         (lit-exp #t)
+                                         (parse-exp (car exp))))
+                       (cdr expr))
+                  (map (lambda (exp) (begin-exp (map parse-exp (cdr exp)))) (cdr expr)))]
        [(and)
         (if (and? expr)
             (and-exp (map parse-exp (cdr expr)))
@@ -352,8 +355,14 @@
                               (syntax-expand then-exp))]
       [begin-exp (bodies)
                  (app-exp (syntax-expand (lambda-exp '() bodies)) '())]
-      [cond-exp (body-exps)
-                ('nyi)]
+      [cond-exp (test-exps body-exps)
+                (cond [(null? test-exps) (lit-exp (void))]
+                      [(if (null? (cdr test-exps))
+                    (syntax-expand (car body-exps))
+                    (if-exp (syntax-expand (car test-exps))
+                            (syntax-expand (car body-exps))
+                            (syntax-expand (cond-exp (cdr test-exps)
+                                                     (cdr body-exps)))))])]
       [set-exp (id value)
                (set-exp (syntax-expand id)
                         (syntax-expand value))]
