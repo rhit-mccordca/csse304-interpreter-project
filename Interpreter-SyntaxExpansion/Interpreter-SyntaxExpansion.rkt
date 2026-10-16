@@ -29,7 +29,8 @@
       (string? expr)
       (boolean? expr)
       (vector? expr)
-      (quoted? expr)))
+      (quoted? expr)
+      (void? expr)))
 
 (define (prim-proc? sym)
   (let ([prim-procs '(+ - * / add1 sub1 cons >= = car cdr list zero? null? procedure? assq eq? equal? atom? length list->vector not
@@ -57,7 +58,11 @@
    (test-exp expression?)
    (then-exp expression?)
    (else-exp expression?)]
-  
+  [else-exp
+   (bodies (list-of? expression?))]
+  [one-if-exp
+   (test-exp expression?)
+   (then-exp expression?)]
   [let-exp
    (vars (list-of? symbol?))
    (var-exps (list-of? expression?))
@@ -77,14 +82,20 @@
    (bodies (list-of? expression?))]
   [and-exp
    (exprs (list-of? scheme-value?))]
+  [or-exp
+   (exprs (list-of? scheme-value?))]
   [set-exp
    (id symbol?)
    (value expression?)]
   [app-exp
    (rator expression?)
    (rand (list-of? expression?))]
+  [cond-exp
+   (test-exps (list-of? expression?))
+   (body-exps (list-of? expression?))]
   [begin-exp
-    (bodies (list-of? expression?))])
+    (bodies (lambda (x)
+              (or ((list-of? expression?) x) (null? x))))])
 
 (define-datatype proc-val proc-val?
   [prim-proc
@@ -109,7 +120,10 @@
        (list? expr)))
 
 (define (if? expr)
-  (and (= (length expr) 4)))
+  (= (length expr) 4))
+
+(define (one-if? expr)
+  (= (length expr) 3))
 
 (define (val-exp? expr)
   (and (list? expr)
@@ -125,11 +139,15 @@
   (and (= (length expr) 3)
        (symbol? (2nd expr))))
   
-(define (begin? expr)
-  (and (>= (length expr) 2)
-       (list? (cdr expr))))
+;; (define (begin? expr)
+;;   (and (>= (length expr) 2)
+;;        (list? (cdr expr))))
 
 (define (and? expr)
+  (and (>= (length expr) 1)
+       (list? (cdr expr))))
+
+(define (or? expr)
   (and (>= (length expr) 1)
        (list? (cdr expr))))
 
@@ -195,18 +213,31 @@
                         (map parse-exp (cddr expr)))
             (parse-err expr))]
        [(begin)
-        (if (begin? expr)
-            (begin-exp (map parse-exp (cdr expr)))
-            (parse-err expr))]
+        (if (empty? (cdr expr))
+            (lit-exp (void))
+            (begin-exp (map parse-exp (cdr expr))))]
+       [(cond)
+        (cond-exp (map (lambda (exp) (parse-exp (car exp))) (cdr expr))
+                  (map (lambda (exp) (map parse-exp (cdr exp))) (cdr expr)))]
        [(and)
         (if (and? expr)
             (and-exp (map parse-exp (cdr expr)))
             (parse-err expr))]
+       [(or)
+        (if (or? expr)
+            (or-exp (map parse-exp (cdr expr)))
+            (parse-err expr))]
        [(if)
-        (if-exp
-         (parse-exp (2nd expr))
-         (parse-exp (3rd expr))
-         (parse-exp (4th expr)))]
+        (cond [(if? expr)
+               (if-exp
+                (parse-exp (2nd expr))
+                (parse-exp (3rd expr))
+                (parse-exp (4th expr)))]
+              [(one-if? expr)
+               (one-if-exp
+                (parse-exp (2nd expr))
+                (parse-exp (3rd expr)))]
+              [else (parse-err expr)])]
        [(set!)
         (set-exp (2nd expr) (3rd expr))]
        [else (app-exp (parse-exp (1st expr))
@@ -280,21 +311,31 @@
                      [else (if-exp (syntax-expand (car exprs))
                                    (syntax-expand (and-exp (cdr exprs)))
                                    (lit-exp #f))])]
+      [or-exp (exprs)
+               (cond [(null? exprs) (lit-exp #f)]
+                     [(null? (cdr exprs)) (syntax-expand (car exprs))]
+                     [else (if-exp (syntax-expand (car exprs))
+                                   (syntax-expand (car exprs))
+                                   (syntax-expand (or-exp (cdr exprs))))])]
       [lambda-exp (vars bodies)
                   (lambda-exp vars
                               (map syntax-expand bodies))]
       [let-exp (vars var-exps bodies)
-               (let-exp vars
-                        (map syntax-expand var-exps)
-                        (map syntax-expand bodies))]
+               (app-exp (lambda-exp vars
+                                    (map syntax-expand bodies))
+                        (map syntax-expand var-exps))]
       [named-let-exp (name vars var-exps bodies)
                      (named-let-exp name vars
                                     (syntax-expand var-exps)
                                     (syntax-expand bodies))]
       [let*-exp (vars var-exps bodies)
-                (let*-exp vars
-                          (syntax-expand var-exps)
-                          (syntax-expand bodies))]
+                (if (<= (length vars) 1)
+                    (syntax-expand (let-exp vars var-exps bodies))
+                    (syntax-expand (let-exp (list (1st vars))
+                                            (list (1st var-exps))
+                                            (list (let*-exp (cdr vars)
+                                                            (cdr var-exps)
+                                                            bodies)))))]
       [letrec-exp (vars var-exps bodies)
                   (let-exp vars
                            (syntax-expand var-exps)
@@ -306,8 +347,13 @@
               (if-exp (syntax-expand test-exp)
                       (syntax-expand then-exp)
                       (syntax-expand else-exp))]
+      [one-if-exp (test-exp then-exp)
+                  (one-if-exp (syntax-expand test-exp)
+                              (syntax-expand then-exp))]
       [begin-exp (bodies)
-                 (begin-exp (syntax-expand bodies))]
+                 (app-exp (syntax-expand (lambda-exp '() bodies)) '())]
+      [cond-exp (body-exps)
+                ('nyi)]
       [set-exp (id value)
                (set-exp (syntax-expand id)
                         (syntax-expand value))]
@@ -412,6 +458,8 @@
                  (apply-proc proc-value args))]
       [if-exp (test-exp then-exp else-exp)
               (if (eval-exp env test-exp) (eval-exp env then-exp) (eval-exp env else-exp))]
+      [one-if-exp (test-exp then-exp)
+                  (when (eval-exp env test-exp) (eval-exp env then-exp))]
 ;;       [begin-exp (bodies)
 ;;                  (last (map (lambda (body) (eval-exp env body)) bodies))]
       [else (error 'eval-exp "Bad abstract syntax: ~a" exp)])))
@@ -459,3 +507,4 @@
 
 ;(trace parse-exp)
 ;(trace syntax-expand)
+;(trace eval-exp)
