@@ -16,6 +16,9 @@
 ; Datatype Helpers  |
 ;-------------------+
 
+(define scheme-value?
+  (lambda (x) #t))
+
 (define (quoted? expr)
   (and (list? expr)
        (= 2 (length expr))
@@ -31,7 +34,7 @@
 (define (prim-proc? sym)
   (let ([prim-procs '(+ - * / add1 sub1 cons >= = car cdr list zero? null? procedure? assq eq? equal? atom? length list->vector not
                         list? pair? procedure? vector->list vector make-vector vector-ref vector? number? symbol? vector-set! display newline
-                        caar cadr cadar map apply and)])
+                        caar cadr cadar map apply)])
     (ormap (lambda (proc) (eqv? sym proc)) prim-procs)))
 
 ;-------------------+
@@ -72,14 +75,14 @@
    (vars (list-of? symbol?))
    (var-exps (list-of? expression?))
    (bodies (list-of? expression?))]
-  
+  [and-exp
+   (exprs (list-of? scheme-value?))]
   [set-exp
    (id symbol?)
    (value expression?)]
   [app-exp
    (rator expression?)
    (rand (list-of? expression?))]
-
   [begin-exp
     (bodies (list-of? expression?))])
 
@@ -99,7 +102,7 @@
 (define (lambda? expr)
   (let ([vars (2nd expr)][bodies (cddr expr)])
     (and (or (empty? vars) (symbol? vars) ((list-of? symbol?) vars))
-         (or (literal? bodies) (symbol? bodies) ((list-of? list?) bodies) ((list-of? symbol?) bodies) ((list-of? literal?) bodies)))))
+         (list-of? scheme-value?))))
 
 (define (app? expr)
   (and (pair? expr)
@@ -124,7 +127,11 @@
   
 (define (begin? expr)
   (and (>= (length expr) 2)
-       (list? expr)))
+       (list? (cdr expr))))
+
+(define (and? expr)
+  (and (>= (length expr) 1)
+       (list? (cdr expr))))
 
 ;-------------------+
 ;   Error Helpers   |
@@ -137,6 +144,10 @@
 (define env-err
   (lambda (env)
     (error 'apply-global-env "this is not a real environment implementation: ~s" env)))
+
+(define apply-proc-err
+  (lambda (proc)
+    (error 'apply-proc "Attempt to apply bad procedure: ~s" proc)))
 
 ;-------------------+
 ;     Parser        |
@@ -176,11 +187,20 @@
                       (map parse-exp bodies)))]
        [(lambda)
         (if (lambda? expr)
-            (lambda-exp (2nd expr) (map parse-exp (cddr expr)))
+            (lambda-exp (if (list (2nd expr))
+                            (if (> (length (2nd expr)) 1)
+                                (map parse-exp (2nd expr))
+                                (parse-exp (1st (2nd expr))))
+                            (parse-exp (2nd expr)))
+                        (map parse-exp (cddr expr)))
             (parse-err expr))]
        [(begin)
         (if (begin? expr)
             (begin-exp (map parse-exp (cdr expr)))
+            (parse-err expr))]
+       [(and)
+        (if (and? expr)
+            (and-exp (map parse-exp (cdr expr)))
             (parse-err expr))]
        [(if)
         (if-exp
@@ -192,14 +212,10 @@
        [else (app-exp (parse-exp (1st expr))
                       (map parse-exp (cdr expr)))])]
     [else (parse-err expr)]))
-          
       
 ;-------------------+
 ;   Environments    |
 ;-------------------+
-
-(define scheme-value?
-  (lambda (x) #t))
 
 ;; Environment Datatype Declarations
 
@@ -258,12 +274,43 @@
     (cases expression exp
       [var-exp (symbol) exp]
       [lit-exp (literal) exp]
-      [and-exp (exps)
-               (cond [(null? exps) (lit-exp #t)]
-                     [(null? (cdr exps)) (syntax-expand (car exps))]
-                     [else (if-exp (syntax-expand (car exps))
-                                   (syntax-expand (and-exp (cdr exps)))
-                                   (lit-exp #f))])])))
+      [and-exp (exprs)
+               (cond [(null? exprs) (lit-exp #t)]
+                     [(null? (cdr exprs)) (syntax-expand (car exprs))]
+                     [else (if-exp (syntax-expand (car exprs))
+                                   (syntax-expand (and-exp (cdr exprs)))
+                                   (lit-exp #f))])]
+      [lambda-exp (vars bodies)
+                  (lambda-exp (map syntax-expand vars)
+                              (map syntax-expand bodies))]
+      [let-exp (vars var-exps bodies)
+               (let-exp (syntax-expand vars)
+                        (syntax-expand var-exps)
+                        (syntax-expand bodies))]
+      [named-let-exp (name vars var-exps bodies)
+                     (named-let-exp name (syntax-expand vars)
+                                    (syntax-expand var-exps)
+                                    (syntax-expand bodies))]
+      [let*-exp (vars var-exps bodies)
+                (let*-exp (syntax-expand vars)
+                          (syntax-expand var-exps)
+                          (syntax-expand bodies))]
+      [letrec-exp (vars var-exps bodies)
+                  (let-exp (syntax-expand vars)
+                           (syntax-expand var-exps)
+                           (syntax-expand bodies))]
+      [app-exp (rator rands)
+               (app-exp (syntax-expand rator)
+                        (map syntax-expand rands))]
+      [if-exp (test-exp then-exp else-exp)
+              (if-exp (syntax-expand test-exp)
+                      (syntax-expand then-exp)
+                      (syntax-expand else-exp))]
+      [begin-exp (bodies)
+                 (begin-exp (syntax-expand bodies))]
+      [set-exp (id value)
+               (set-exp (syntax-expand id)
+                        (syntax-expand value))])))
 
 ;---------------------------------------+
 ;                                       |
@@ -347,25 +394,25 @@
       [var-exp (id)
                (apply-env env id)]
       [lambda-exp (vars bodies) (closure-proc vars bodies env)]
-      [let-exp (vars var-exps bodies)
-               (let ([var-vals (map (lambda (x) (eval-exp env x)) var-exps)])
-                 (let ([new-env (extend-env vars var-vals env)])
-                   (last (map (lambda (body) (eval-exp new-env body)) bodies))))]
-      [let*-exp (vars var-exps bodies)
-                (let loop ([env env] [vars vars] [var-exps var-exps])
-                  (if (empty? var-exps)
-                      (last (map (lambda (body) (eval-exp env body)) bodies))
-                      (let ([var-val (eval-exp env (1st var-exps))])
-                        (loop (extend-env (list (1st vars)) (list var-val) env) (cdr vars) (cdr var-exps)))))]
-                
+;;       [let-exp (vars var-exps bodies)
+;;                (let ([var-vals (map (lambda (x) (eval-exp env x)) var-exps)])
+;;                  (let ([new-env (extend-env vars var-vals env)])
+;;                    (last (map (lambda (body) (eval-exp new-env body)) bodies))))]
+;;       [let*-exp (vars var-exps bodies)
+;;                 (let loop ([env env] [vars vars] [var-exps var-exps])
+;;                   (if (empty? var-exps)
+;;                       (last (map (lambda (body) (eval-exp env body)) bodies))
+;;                       (let ([var-val (eval-exp env (1st var-exps))])
+;;                         (loop (extend-env (list (1st vars)) (list var-val) env) (cdr vars) (cdr var-exps)))))]
+;;                 
       [app-exp (rator rands)
                (let ([proc-value (eval-exp env rator)]
                      [args (eval-rands env rands)])
                  (apply-proc proc-value args))]
       [if-exp (test-exp then-exp else-exp)
               (if (eval-exp env test-exp) (eval-exp env then-exp) (eval-exp env else-exp))]
-      [begin-exp (bodies)
-                 (last (map (lambda (body) (eval-exp env body)) bodies))]
+;;       [begin-exp (bodies)
+;;                  (last (map (lambda (body) (eval-exp env body)) bodies))]
       [else (error 'eval-exp "Bad abstract syntax: ~a" exp)])))
 
 ;-------------------+
@@ -405,3 +452,9 @@
       (pretty-print answer) (newline)
       (rep))))
 
+;-------------------+
+; Trace Statements  |
+;-------------------+
+
+(trace parse-exp)
+(trace syntax-expand)
