@@ -187,10 +187,10 @@
                       (map parse-exp bodies)))]
        [(lambda)
         (if (lambda? expr)
-            (lambda-exp (if (list (2nd expr))
+            (lambda-exp (if (list? (2nd expr))
                             (if (> (length (2nd expr)) 1)
-                                (map parse-exp (2nd expr))
-                                (parse-exp (1st (2nd expr))))
+                                (2nd expr)
+                                '())
                             (parse-exp (2nd expr)))
                         (map parse-exp (cddr expr)))
             (parse-err expr))]
@@ -281,22 +281,22 @@
                                    (syntax-expand (and-exp (cdr exprs)))
                                    (lit-exp #f))])]
       [lambda-exp (vars bodies)
-                  (lambda-exp (map syntax-expand vars)
+                  (lambda-exp vars
                               (map syntax-expand bodies))]
       [let-exp (vars var-exps bodies)
-               (let-exp (syntax-expand vars)
-                        (syntax-expand var-exps)
-                        (syntax-expand bodies))]
+               (let-exp vars
+                        (map syntax-expand var-exps)
+                        (map syntax-expand bodies))]
       [named-let-exp (name vars var-exps bodies)
-                     (named-let-exp name (syntax-expand vars)
+                     (named-let-exp name vars
                                     (syntax-expand var-exps)
                                     (syntax-expand bodies))]
       [let*-exp (vars var-exps bodies)
-                (let*-exp (syntax-expand vars)
+                (let*-exp vars
                           (syntax-expand var-exps)
                           (syntax-expand bodies))]
       [letrec-exp (vars var-exps bodies)
-                  (let-exp (syntax-expand vars)
+                  (let-exp vars
                            (syntax-expand var-exps)
                            (syntax-expand bodies))]
       [app-exp (rator rands)
@@ -310,7 +310,8 @@
                  (begin-exp (syntax-expand bodies))]
       [set-exp (id value)
                (set-exp (syntax-expand id)
-                        (syntax-expand value))])))
+                        (syntax-expand value))]
+      [else exp])))
 
 ;---------------------------------------+
 ;                                       |
@@ -448,7 +449,7 @@
 (define rep
   (lambda ()
     (display "--> ")
-    (let ([answer (top-level-eval (parse-exp (read)))])
+    (let ([answer (top-level-eval (syntax-expand (parse-exp (read))))])
       (pretty-print answer) (newline)
       (rep))))
 
@@ -456,5 +457,5 @@
 ; Trace Statements  |
 ;-------------------+
 
-(trace parse-exp)
-(trace syntax-expand)
+;(trace parse-exp)
+;(trace syntax-expand)
