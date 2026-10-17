@@ -138,10 +138,6 @@
 (define (set!? expr)
   (and (= (length expr) 3)
        (symbol? (2nd expr))))
-  
-;; (define (begin? expr)
-;;   (and (>= (length expr) 2)
-;;        (list? (cdr expr))))
 
 (define (and? expr)
   (and (>= (length expr) 1)
@@ -382,11 +378,16 @@
     (cases proc-val proc-value
       [prim-proc (op) (apply-prim-proc op args)]
       [closure-proc (vars bodies env)
-                    (let ([new-env (extend-env vars args env)])
-                      (last (map (lambda (body) (eval-exp new-env body)) bodies)))]
+                    (if (symbol? vars)
+                        (let ([new-env (extend-env (list vars) (list args) env)])
+                          (last (map (lambda (body) (eval-exp new-env body)) bodies)))
+                        (let ([new-env (extend-env vars args env)])
+                          (last (map (lambda (body) (eval-exp new-env body)) bodies))))]
       [else (error 'apply-proc
                    "Attempt to apply bad procedure: ~s" 
                    proc-value)])))
+;(trace extend-env)
+
 
 (define apply-prim-proc
   (lambda (prim-proc args)
@@ -446,18 +447,7 @@
       [lit-exp (data) (if (quoted? data) (2nd data) data)]
       [var-exp (id)
                (apply-env env id)]
-      [lambda-exp (vars bodies) (closure-proc vars bodies env)]
-;;       [let-exp (vars var-exps bodies)
-;;                (let ([var-vals (map (lambda (x) (eval-exp env x)) var-exps)])
-;;                  (let ([new-env (extend-env vars var-vals env)])
-;;                    (last (map (lambda (body) (eval-exp new-env body)) bodies))))]
-;;       [let*-exp (vars var-exps bodies)
-;;                 (let loop ([env env] [vars vars] [var-exps var-exps])
-;;                   (if (empty? var-exps)
-;;                       (last (map (lambda (body) (eval-exp env body)) bodies))
-;;                       (let ([var-val (eval-exp env (1st var-exps))])
-;;                         (loop (extend-env (list (1st vars)) (list var-val) env) (cdr vars) (cdr var-exps)))))]
-;;                 
+      [lambda-exp (vars bodies) (closure-proc vars bodies env)]               
       [app-exp (rator rands)
                (let ([proc-value (eval-exp env rator)]
                      [args (eval-rands env rands)])
@@ -466,8 +456,6 @@
               (if (eval-exp env test-exp) (eval-exp env then-exp) (eval-exp env else-exp))]
       [one-if-exp (test-exp then-exp)
                   (when (eval-exp env test-exp) (eval-exp env then-exp))]
-;;       [begin-exp (bodies)
-;;                  (last (map (lambda (body) (eval-exp env body)) bodies))]
       [else (error 'eval-exp "Bad abstract syntax: ~a" exp)])))
 
 ;-------------------+
