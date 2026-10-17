@@ -33,7 +33,7 @@
       (void? expr)))
 
 (define (prim-proc? sym)
-  (let ([prim-procs '(+ - * / add1 sub1 cons >= = car cdr list zero? null? procedure? assq eq? equal? atom? length list->vector not
+  (let ([prim-procs '(+ - * / add1 sub1 cons < >= = car cdr list zero? null? procedure? assq eq? equal? atom? length list->vector not
                         list? pair? procedure? vector->list vector make-vector vector-ref vector? number? symbol? vector-set! display newline
                         caar cadr cadar map apply)])
     (ormap (lambda (proc) (eqv? sym proc)) prim-procs)))
@@ -205,11 +205,7 @@
                       (map parse-exp bodies)))]
        [(lambda)
         (if (lambda? expr)
-            (lambda-exp (if (list? (2nd expr))
-                            (if (> (length (2nd expr)) 1)
-                                (2nd expr)
-                                '())
-                            (parse-exp (2nd expr)))
+            (lambda-exp (2nd expr)
                         (map parse-exp (cddr expr)))
             (parse-err expr))]
        [(begin)
@@ -404,6 +400,7 @@
       [(cons) (cons (1st args) (2nd args))]
       [(=) (= (1st args) (2nd args))]
       [(>=) (>= (1st args) (2nd args))]
+      [(<) (< (1st args) (2nd args))]
       [(not) (apply not args)]
       [(car) (car (1st args))]
       [(cdr) (cdr (1st args))]

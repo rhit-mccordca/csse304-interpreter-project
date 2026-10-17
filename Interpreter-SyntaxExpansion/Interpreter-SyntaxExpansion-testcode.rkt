@@ -27,15 +27,15 @@
   )
 
    (lambda-regression-tests equal? ; (run-test lambda-regression-tests)
-;;     [(eval-one-exp '((lambda (x) (+ 1 x)) 5)) 6 1] ; (run-test lambda-regression-tests 1)
-;;     [(eval-one-exp '((lambda (x) (+ 1 x) (+ 2 (* 2 x))) 5)) 12 1] ; (run-test lambda-regression-tests 2)
-;;     [(eval-one-exp ' ((lambda (a b) (let ([a (+ a b)] [b (- a b)]) (let ([f (lambda (a) (+ a b))]) (f (+ 3 a b))))) 56 17)) 154 3] ; (run-test lambda-regression-tests 3)
-;;     [(eval-one-exp ' (((lambda (f) ((lambda (x) (f (lambda (y) ((x x) y)))) (lambda (x) (f (lambda (y) ((x x) y)))))) (lambda (g) (lambda (n) (if (zero? n) 1 (* n (g (- n 1))))))) 6)) 720 4] ; (run-test lambda-regression-tests 4)
-;;     [(eval-one-exp ' (let ((Y (lambda (f) ((lambda (x) (f (lambda (y) ((x x) y)))) (lambda (x) (f (lambda (y) ((x x) y))))))) (H (lambda (g) (lambda (x) (if (null? x) '() (cons (procedure? (car x)) (g (cdr x)))))))) ((Y H) (list list (lambda (x) x) 'list)))) '(#t #t #f) 4] ; (run-test lambda-regression-tests 5)
+    [(eval-one-exp '((lambda (x) (+ 1 x)) 5)) 6 1] ; (run-test lambda-regression-tests 1)
+    [(eval-one-exp '((lambda (x) (+ 1 x) (+ 2 (* 2 x))) 5)) 12 1] ; (run-test lambda-regression-tests 2)
+    [(eval-one-exp ' ((lambda (a b) (let ([a (+ a b)] [b (- a b)]) (let ([f (lambda (a) (+ a b))]) (f (+ 3 a b))))) 56 17)) 154 3] ; (run-test lambda-regression-tests 3)
+    [(eval-one-exp ' (((lambda (f) ((lambda (x) (f (lambda (y) ((x x) y)))) (lambda (x) (f (lambda (y) ((x x) y)))))) (lambda (g) (lambda (n) (if (zero? n) 1 (* n (g (- n 1))))))) 6)) 720 4] ; (run-test lambda-regression-tests 4)
+    [(eval-one-exp ' (let ((Y (lambda (f) ((lambda (x) (f (lambda (y) ((x x) y)))) (lambda (x) (f (lambda (y) ((x x) y))))))) (H (lambda (g) (lambda (x) (if (null? x) '() (cons (procedure? (car x)) (g (cdr x)))))))) ((Y H) (list list (lambda (x) x) 'list)))) '(#t #t #f) 4] ; (run-test lambda-regression-tests 5)
    )
-;; 
+
    (lambda-with-variable-args equal? ; (run-test lambda-with-variable-args)
-;;     [(eval-one-exp '((lambda x (car x) (cdr x)) 'a 'b 'c)) '(b c) 5] ; (run-test lambda-with-variable-args 1)
+    [(eval-one-exp '((lambda x (car x) (cdr x)) 'a 'b 'c)) '(b c) 5] ; (run-test lambda-with-variable-args 1)
    )
 
    (let equal? ; (run-test literals)
@@ -63,8 +63,8 @@
     [(eval-one-exp '(and 3 4 5)) 5 2] ; (run-test literals 3)
     [(eval-one-exp '(and 3 #f 5)) #f 2] ; (run-test literals 4)
     [(eval-one-exp '(and 3 4 #f)) #f 2] ; (run-test literals 5)
-    ;[(eval-one-exp '((lambda (v) (and 3 ((lambda () (vector-set! v 1 42) #f)) 5)) (vector 3 4 5))) #f 3] ; (run-test literals 6)
-    ;[(eval-one-exp '((lambda (v) (and 3 ((lambda () (vector-set! v 1 42) #f)) ((lambda ()(vector-set! v 1 88)))) v) (vector 3 4 5))) '#(3 42 5) 3] ; (run-test literals 7)
+    [(eval-one-exp '((lambda (v) (and 3 ((lambda () (vector-set! v 1 42) #f)) 5)) (vector 3 4 5))) #f 3] ; (run-test literals 6)
+    [(eval-one-exp '((lambda (v) (and 3 ((lambda () (vector-set! v 1 42) #f)) ((lambda ()(vector-set! v 1 88)))) v) (vector 3 4 5))) '#(3 42 5) 3] ; (run-test literals 7)
   )
 
    (or equal? ; (run-test literals)
@@ -73,8 +73,8 @@
     [(eval-one-exp '(or 3 4 5)) 3 2] ; (run-test literals 3)
     [(eval-one-exp '(or 3 #f 5)) 3 2] ; (run-test literals 4)
     [(eval-one-exp '(or #f 4 5)) 4 2] ; (run-test literals 5)
-    ;[(eval-one-exp '((lambda (v) (or ((lambda () (vector-set! v 1 42) #f)) 5)) (vector 3 4 5))) 5 3] ; (run-test literals 6)
-    ;[(eval-one-exp '((lambda (v) (or 3 ((lambda () (vector-set! v 1 42) #f))) v) (vector 3 4 5))) '#(3 4 5) 3] ; (run-test literals 7)
+    [(eval-one-exp '((lambda (v) (or ((lambda () (vector-set! v 1 42) #f)) 5)) (vector 3 4 5))) 5 3] ; (run-test literals 6)
+    [(eval-one-exp '((lambda (v) (or 3 ((lambda () (vector-set! v 1 42) #f))) v) (vector 3 4 5))) '#(3 4 5) 3] ; (run-test literals 7)
   )
 
    (begin equal? ; (run-test literals)
@@ -83,21 +83,21 @@
     [(eval-one-exp '(begin 3 4 5)) 5 1] ; (run-test literals 2)
     [(eval-one-exp  '(begin 3 (begin 4 5) 6)) 6 2] ; (run-test literals 3)
     [(eval-one-exp '(begin 3 (begin 4 (begin 5 (begin 6))))) 6 2] ; (run-test literals 4)
-    ;[(eval-one-exp '((lambda (v) (begin (vector-set! v 0 (+ (vector-ref v 0) 1)) (vector-set! v 0 (+ (vector-ref v 0) 1)) v)) (vector 5))) '#(7) 3] ; (run-test literals 5)
+    [(eval-one-exp '((lambda (v) (begin (vector-set! v 0 (+ (vector-ref v 0) 1)) (vector-set! v 0 (+ (vector-ref v 0) 1)) v)) (vector 5))) '#(7) 3] ; (run-test literals 5)
   )
 
   (cond equal? ; (run-test literals)
     [(eval-one-exp '(cond)) (void) 2] ; (run-test literals 1)
     [(eval-one-exp '(cond [3 4])) 4 2] ; (run-test literals 2)
     [(eval-one-exp '(cond [3 4 5])) 5 2] ; (run-test literals 3)
-    ;[(eval-one-exp '((lambda (x) (cond [(= x 3) (+ x 3)][(= x 7) (+ x 7)][else (+ x 9)][(= x 10)(+ x 10)])) 3)) 6 3]
-    ;[(eval-one-exp '((lambda (x) (cond [(= x 3) (+ x 3)][(= x 7) (+ x 7)][else (+ x 9)][(= x 10)(+ x 10)])) 7)) 14 3]
-    ;[(eval-one-exp '((lambda (x) (cond [(= x 3) (+ x 3)][(= x 7) (+ x 7)][else (+ x 9)][(= x 10)(+ x 10)])) 42)) 51 3]
-    ;[(eval-one-exp '((lambda (x) (cond [(= x 3) (+ x 3)][(= x 7) (+ x 7)][else (+ x 9)][(= x 10)(+ x 10)])) 10)) 19 3]
+    [(eval-one-exp '((lambda (x) (cond [(= x 3) (+ x 3)][(= x 7) (+ x 7)][else (+ x 9)][(= x 10)(+ x 10)])) 3)) 6 3]
+    [(eval-one-exp '((lambda (x) (cond [(= x 3) (+ x 3)][(= x 7) (+ x 7)][else (+ x 9)][(= x 10)(+ x 10)])) 7)) 14 3]
+    [(eval-one-exp '((lambda (x) (cond [(= x 3) (+ x 3)][(= x 7) (+ x 7)][else (+ x 9)][(= x 10)(+ x 10)])) 42)) 51 3]
+    [(eval-one-exp '((lambda (x) (cond [(= x 3) (+ x 3)][(= x 7) (+ x 7)][else (+ x 9)][(= x 10)(+ x 10)])) 10)) 19 3]
     )
   
   (one-armed-if equal? ; (run-test one-armed-if)
-    ;[(eval-one-exp '(let ((x (vector 7))) (if (< 4 5) (vector-set! x 0 (+ 3 (vector-ref x 0)))) (if (< 4 2) (vector-set! x 0 (+ 6 (vector-ref x 0)))) (vector-ref x 0))) 10 5] ; (run-test one-armed-if 1)
+    [(eval-one-exp '(let ((x (vector 7))) (if (< 4 5) (vector-set! x 0 (+ 3 (vector-ref x 0)))) (if (< 4 2) (vector-set! x 0 (+ 6 (vector-ref x 0)))) (vector-ref x 0))) 10 5] ; (run-test one-armed-if 1)
   )
 
   (quasiquote equal?
