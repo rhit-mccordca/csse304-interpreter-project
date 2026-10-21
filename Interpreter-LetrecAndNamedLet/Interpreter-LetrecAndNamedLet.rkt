@@ -77,8 +77,8 @@
    (var-exps (list-of? expression?))
    (bodies (list-of? expression?))]
   [letrec-exp
-   (vars (list-of? symbol?))
-   (var-exps (list-of? expression?))
+   (names (list-of? symbol?))
+   (exps (list-of? expression?))
    (bodies (list-of? expression?))]
   [and-exp
    (exprs (list-of? scheme-value?))]
@@ -194,10 +194,10 @@
                     (map parse-exp (map 2nd var-pairs))
                     (map parse-exp bodies)))]
        [(letrec)
-        (let ([var-pairs (2nd expr)]
+        (let ([exp-pairs (2nd expr)]
               [bodies (cddr expr)])
-          (letrec-exp (map 1st var-pairs)
-                      (map parse-exp (map 2nd var-pairs))
+          (letrec-exp (map 1st exp-pairs)
+                      (map parse-exp (map 2nd exp-pairs))
                       (map parse-exp bodies)))]
        [(lambda)
         (if (lambda? expr)
@@ -248,8 +248,8 @@
 (define-datatype environment environment?
   [empty-env-record]
   [extended-env-record
-   (syms (list-of? symbol?))
-   (vals (list-of? scheme-value?))
+   (syms vector?)
+   (vals vector?)
    (env environment?)])
 
 ;; Environment Initializations
@@ -282,14 +282,28 @@
       [empty-env-record ()
                         (apply-global-env env sym)]
       [extended-env-record (syms vals env)
-                           (let ([pos (list-find-position sym syms)])
+                           (let ([pos (list-find-position sym (vector->list syms))])
                              (if (number? pos)
-                                 (list-ref vals pos)
+                                 (list-ref (vector->list vals) pos)
                                  (apply-env env sym)))])))
 
 (define extend-env
   (lambda (syms vals env)
-    (extended-env-record syms vals env)))
+    (extended-env-record (list->vector syms)
+                         (if (list? vals)
+                             (if (empty? vals)
+                             (make-vector (length syms))
+                             (list->vector vals))
+                             (vector vals))
+                         env)))
+
+(define set-env-vals
+  (lambda (env clos)
+    (cases environment env
+      [empty-env-record ()
+                        (error 'set-env-vals "Cannot set values in an empty environment")]
+      [extended-env-record (syms vals env)
+                           (vector-copy! vals 0 (list->vector clos))])))
 
 ;-----------------------+
 ;  Syntax Expansion     |
@@ -331,10 +345,6 @@
                                             (list (let*-exp (cdr vars)
                                                             (cdr var-exps)
                                                             bodies)))))]
-      [letrec-exp (vars var-exps bodies)
-                  (let-exp vars
-                           (syntax-expand var-exps)
-                           (syntax-expand bodies))]
       [app-exp (rator rands)
                (app-exp (syntax-expand rator)
                         (map syntax-expand rands))]
@@ -447,7 +457,14 @@
       [lit-exp (data) (if (quoted? data) (2nd data) data)]
       [var-exp (id)
                (apply-env env id)]
-      [lambda-exp (vars bodies) (closure-proc vars bodies env)]               
+      [lambda-exp (vars bodies) (closure-proc vars bodies env)]
+      [letrec-exp (names exps bodies)
+                  (let* ([new-env (extend-env names '() env)]
+                         [clos-exps (map (lambda (exp) (eval-exp new-env exp)) exps)])
+                    (set-env-vals new-env clos-exps)
+                    (last (map (lambda (body) (eval-exp new-env body)) bodies)))]
+                    ;(eval-exp (app-exp (lambda-exp names bodies) clos-exps)))]
+                    
       [app-exp (rator rands)
                (let ([proc-value (eval-exp env rator)]
                      [args (eval-rands env rands)])
@@ -502,3 +519,4 @@
 ;(trace parse-exp)
 ;(trace syntax-expand)
 ;(trace eval-exp)
+;(trace set-env-vals)
