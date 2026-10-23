@@ -33,9 +33,9 @@
       (void? expr)))
 
 (define (prim-proc? sym)
-  (let ([prim-procs '(+ - * / add1 sub1 cons < >= = car cdr list zero? null? procedure? assq eq? equal? atom? length list->vector not
+  (let ([prim-procs '(+ - * / add1 sub1 cons < > >= = car cdr list zero? null? procedure? assq eq? equal? eqv? atom? length list->vector not
                         list? pair? procedure? vector->list vector make-vector vector-ref vector? number? symbol? vector-set! display newline
-                        caar cadr cadar map apply)])
+                        caar cadr cadar map apply union member product quotient list-tail append)])
     (ormap (lambda (proc) (eqv? sym proc)) prim-procs)))
 
 ;-------------------+
@@ -146,6 +146,14 @@
 (define (or? expr)
   (and (>= (length expr) 1)
        (list? (cdr expr))))
+
+(define (union s1 s2)
+  (cond [(null? s1) s2]
+        [(member (car s1) s2) (union (cdr s1) s2)]
+        [else (cons (car s1) (union (cdr s1) s2))]))
+
+(define (product expr)
+  (apply * (map (lambda (x) x) expr)))
 
 ;-------------------+
 ;   Error Helpers   |
@@ -345,6 +353,10 @@
                                             (list (let*-exp (cdr vars)
                                                             (cdr var-exps)
                                                             bodies)))))]
+      [letrec-exp (names exps bodies)
+                  (letrec-exp names
+                              (map syntax-expand exps)
+                              (map syntax-expand bodies))]
       [app-exp (rator rands)
                (app-exp (syntax-expand rator)
                         (map syntax-expand rands))]
@@ -359,12 +371,11 @@
                  (app-exp (syntax-expand (lambda-exp '() bodies)) '())]
       [cond-exp (test-exps body-exps)
                 (cond [(null? test-exps) (lit-exp (void))]
-                      [(if (null? (cdr test-exps))
-                    (syntax-expand (car body-exps))
-                    (if-exp (syntax-expand (car test-exps))
+                      [(null? (cdr test-exps)) (syntax-expand (car body-exps))]
+                      [else (if-exp (syntax-expand (car test-exps))
                             (syntax-expand (car body-exps))
                             (syntax-expand (cond-exp (cdr test-exps)
-                                                     (cdr body-exps)))))])]
+                                                     (cdr body-exps))))])]
       [set-exp (id value)
                (set-exp (syntax-expand id)
                         (syntax-expand value))]
@@ -411,6 +422,7 @@
       [(cons) (cons (1st args) (2nd args))]
       [(=) (= (1st args) (2nd args))]
       [(>=) (>= (1st args) (2nd args))]
+      [(>) (> (1st args) (2nd args))]
       [(<) (< (1st args) (2nd args))]
       [(not) (apply not args)]
       [(car) (car (1st args))]
@@ -424,6 +436,7 @@
       [(null?) (null? (1st args))]
       [(eq?) (eq? (1st args) (2nd args))]
       [(equal?) (equal? (1st args) (2nd args))]
+      [(eqv?) (eqv? (1st args) (2nd args))]
       [(atom?) (apply (not (pair?)) args)]
       [(length) (apply length args)]
       [(list->vector) (apply list->vector args)]
@@ -443,6 +456,12 @@
       [(map) (map (lambda (elem) (apply-proc (1st args) elem)) (2nd args))]
       [(apply) (apply-proc (1st args) (2nd args))]
       [(and) (and args)]
+      [(union) (union (1st args) (2nd args))]
+      [(member) (apply member args)]
+      [(product) (apply product args)]
+      [(quotient) (quotient (1st args) (2nd args))]
+      [(list-tail) (list-tail (1st args) (2nd args))]
+      [(append) (apply append args)]
       [else (error 'apply-prim-proc 
                    "Bad primitive procedure name: ~s" 
                    prim-proc)])))
@@ -463,8 +482,7 @@
                          [clos-exps (map (lambda (exp) (eval-exp new-env exp)) exps)])
                     (set-env-vals new-env clos-exps)
                     (last (map (lambda (body) (eval-exp new-env body)) bodies)))]
-                    ;(eval-exp (app-exp (lambda-exp names bodies) clos-exps)))]
-                    
+                    ;(eval-exp (app-exp (lambda-exp names bodies) clos-exps)))
       [app-exp (rator rands)
                (let ([proc-value (eval-exp env rator)]
                      [args (eval-rands env rands)])

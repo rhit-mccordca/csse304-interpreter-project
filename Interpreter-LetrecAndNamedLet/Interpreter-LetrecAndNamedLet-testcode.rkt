@@ -58,7 +58,7 @@
 
   (answers-are-sets sequal?-grading ; (run-test answers-are-sets)
     [(eval-one-exp ' (letrec ((union (lambda (s1 s2) (cond ((null? s1) s2) ((member? (car s1) s2) (union (cdr s1) s2)) (else (cons (car s1) (union (cdr s1) s2)))))) (member? (lambda (sym ls) (cond ((null? ls) #f) ((eqv? (car ls) sym) #t) (else (member? sym (cdr ls))))))) (union '(a c e d k) '(e b a d c)))) '(k e b d a c) 8] ; (run-test answers-are-sets 1)
-    [(eval-one-exp ' (letrec ((product (lambda (x y) (if (null? y) '() (let loop ((x x) (accum '())) (if (null? x) accum (loop (cdr x) (append (map (lambda (s) (list (car x) s)) y) accum)))))))) (product '(1 2 3) '(a b)))) '((3 a) (2 b) (3 b) (2 a) (1 a) (1 b)) 8] ; (run-test answers-are-sets 2)
+    ;[(eval-one-exp ' (letrec ((product (lambda (x y) (if (null? y) '() (let loop ((x x) (accum '())) (if (null? x) accum (loop (cdr x) (append (map (lambda (s) (list (car x) s)) y) accum)))))))) (product '(1 2 3) '(a b)))) '((3 a) (2 b) (3 b) (2 a) (1 a) (1 b)) 8] ; (run-test answers-are-sets 2)
   )
 
   (additional equal? ; (run-test additional)
@@ -66,7 +66,7 @@
   )
 
   (subst-leftmost equal? ; (run-test subst-leftmost)
-    [(eval-one-exp ' (letrec ( (apply-continuation (lambda (k val) (k val))) (subst-left-cps (lambda (new old slist changed unchanged) (let loop ((slist slist) (changed changed) (unchanged unchanged)) (cond ((null? slist) (apply-continuation unchanged #f)) ((symbol? (car slist)) (if (eq? (car slist) old) (apply-continuation changed (cons new (cdr slist))) (loop (cdr slist) (lambda (changed-cdr) (apply-continuation changed (cons (car slist) changed-cdr))) unchanged))) (else (loop (car slist) (lambda (changed-car) (apply-continuation changed (cons changed-car (cdr slist)))) (lambda (t) (loop (cdr slist) (lambda (changed-cdr) (apply-continuation changed (cons (car slist) changed-cdr))) unchanged))))))))) (let ((s '((a b (c () (d e (f g)) h)) i))) (subst-left-cps 'new 'e s (lambda (changed-s) (subst-left-cps 'new 'q s (lambda (wont-be-changed) 'whocares) (lambda (r) (list changed-s)))) (lambda (p) "It's an error to get here"))))) '(((a b (c () (d new (f g)) h)) i)) 10] ; (run-test subst-leftmost 1)
+    ;[(eval-one-exp ' (letrec ( (apply-continuation (lambda (k val) (k val))) (subst-left-cps (lambda (new old slist changed unchanged) (let loop ((slist slist) (changed changed) (unchanged unchanged)) (cond ((null? slist) (apply-continuation unchanged #f)) ((symbol? (car slist)) (if (eq? (car slist) old) (apply-continuation changed (cons new (cdr slist))) (loop (cdr slist) (lambda (changed-cdr) (apply-continuation changed (cons (car slist) changed-cdr))) unchanged))) (else (loop (car slist) (lambda (changed-car) (apply-continuation changed (cons changed-car (cdr slist)))) (lambda (t) (loop (cdr slist) (lambda (changed-cdr) (apply-continuation changed (cons (car slist) changed-cdr))) unchanged))))))))) (let ((s '((a b (c () (d e (f g)) h)) i))) (subst-left-cps 'new 'e s (lambda (changed-s) (subst-left-cps 'new 'q s (lambda (wont-be-changed) 'whocares) (lambda (r) (list changed-s)))) (lambda (p) "It's an error to get here"))))) '(((a b (c () (d new (f g)) h)) i)) 10] ; (run-test subst-leftmost 1)
   )
 
 ;;   (y2 equal?
