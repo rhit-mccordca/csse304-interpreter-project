@@ -342,9 +342,11 @@
                                     (map syntax-expand bodies))
                         (map syntax-expand var-exps))]
       [named-let-exp (name vars var-exps bodies)
-                     (named-let-exp name vars
-                                    (syntax-expand var-exps)
-                                    (syntax-expand bodies))]
+                     (app-exp (letrec-exp (list name)
+                                          (list (lambda-exp vars
+                                                   (map syntax-expand bodies)))
+                                          (list (var-exp name)))
+                                 (map syntax-expand var-exps))]
       [let*-exp (vars var-exps bodies)
                 (if (<= (length vars) 1)
                     (syntax-expand (let-exp vars var-exps bodies))
