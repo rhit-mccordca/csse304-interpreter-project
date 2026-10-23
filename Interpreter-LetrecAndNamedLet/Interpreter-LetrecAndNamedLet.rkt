@@ -1,7 +1,7 @@
 #lang racket
 
 (require "../chez-init.rkt" racket/trace)
-(provide eval-one-exp)
+(provide eval-one-exp y2 advanced-letrec)
 
 ;-------------------+
 ; General Helpers   |
@@ -540,3 +540,16 @@
 ;(trace syntax-expand)
 ;(trace eval-exp)
 ;(trace set-env-vals)
+
+;-------------------+
+; Y2 additions      |
+;-------------------+
+
+(define y2
+  (lambda (which f1 f2)
+    (error "nyi")))
+
+(define-syntax (advanced-letrec stx)
+  (syntax-case stx ()
+    [(advanced-letrec ((fun-name fun-body)...) letrec-body)
+     #'(error "nyi")]))
