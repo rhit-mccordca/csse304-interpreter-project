@@ -13,11 +13,11 @@
 
 (define test (make-test ; (r)
   (set!-local-variables equal? ; (run-test set!-local-variables)
-;    [(eval-one-exp '(let ((f #f) (x 3)) (set! f (lambda (n) (+ 3 (* n 10)))) (set! x 7) (f x))) 73 5] ; (run-test set!-local-variables 1)
-;    [(eval-one-exp '((lambda (x) (set! x (+ x 1)) (+ x 2)) 90)) 93 5] ; (run-test set!-local-variables 2)
-;    [(eval-one-exp '(let ((x 5) (y 3)) (let ((z (begin (set! x (+ x y)) x))) (+ z (+ x y))))) 19 5] ; (run-test set!-local-variables 3)
-;    [(eval-one-exp '(let ((a 5)) (if (not (= a 6)) (begin (set! a (+ 1 a)) (set! a (+ 1 a))) 3) (+ 1 a))) 8 6] ; (run-test set!-local-variables 4)
-;    [(eval-one-exp '(let ((f #f)) (let ((dummy (begin (set! f (lambda (n) (+ 3 (* n 10)))) 3))) (f 4)))) 43 6] ; (run-test set!-local-variables 5)
+    [(eval-one-exp '(let ((f #f) (x 3)) (set! f (lambda (n) (+ 3 (* n 10)))) (set! x 7) (f x))) 73 5] ; (run-test set!-local-variables 1)
+    [(eval-one-exp '((lambda (x) (set! x (+ x 1)) (+ x 2)) 90)) 93 5] ; (run-test set!-local-variables 2)
+    [(eval-one-exp '(let ((x 5) (y 3)) (let ((z (begin (set! x (+ x y)) x))) (+ z (+ x y))))) 19 5] ; (run-test set!-local-variables 3)
+    [(eval-one-exp '(let ((a 5)) (if (not (= a 6)) (begin (set! a (+ 1 a)) (set! a (+ 1 a))) 3) (+ 1 a))) 8 6] ; (run-test set!-local-variables 4)
+    [(eval-one-exp '(let ((f #f)) (let ((dummy (begin (set! f (lambda (n) (+ 3 (* n 10)))) 3))) (f 4)))) 43 6] ; (run-test set!-local-variables 5)
   )
 
   (simple-defines equal? ; (run-test simple-defines)

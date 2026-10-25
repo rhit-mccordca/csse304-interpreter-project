@@ -86,15 +86,18 @@
    (exprs (list-of? scheme-value?))]
   [or-exp
    (exprs (list-of? scheme-value?))]
-  [set-exp
-   (id symbol?)
-   (value expression?)]
   [app-exp
    (rator expression?)
    (rand (list-of? expression?))]
   [cond-exp
    (test-exps (list-of? expression?))
    (body-exps (list-of? expression?))]
+  [define-exp
+    (id symbol?)
+    (expr expression?)]
+  [set-exp
+   (id symbol?)
+   (value expression?)]
   [begin-exp
     (bodies (lambda (x)
               (or ((list-of? expression?) x) (null? x))))])
@@ -248,7 +251,9 @@
                 (parse-exp (3rd expr)))]
               [else (parse-err expr)])]
        [(set!)
-        (set-exp (2nd expr) (3rd expr))]
+        (set-exp (2nd expr) (parse-exp (3rd expr)))]
+       [(define)
+        (define-exp (2nd expr) (parse-exp (3rd expr)))]
        [else (app-exp (parse-exp (1st expr))
                       (map parse-exp (cdr expr)))])]
     [else (parse-err expr)]))
@@ -268,33 +273,43 @@
 
 ;; Environment Initializations
 
-(define global-env
-  (extend-env
-   (list->vector prim-procs)
-   (list->vector (map (lambda (x) (prim-proc x)) prim-procs))
-   (empty-env)))
-  
+(define empty-env
+  (lambda () (empty-env-record)))
+
 (define make-init-env
   (lambda () 
     (extend-env
-     (list->vector prim-procs)
-     (list->vector (map (lambda (x) (prim-proc x)) prim-procs))
+     prim-procs
+     (map (lambda (x) (prim-proc x)) prim-procs)
      (empty-env))))
 
-(define empty-env
-  (lambda () (empty-env-record)))
+(define extend-env
+  (lambda (syms vals env)
+    (extended-env-record (list->vector syms)
+                         (if (list? vals)
+                             (if (empty? vals)
+                             (make-vector (length syms))
+                             (list->vector vals))
+                             (vector vals))
+                         env)))
+
+(define global-env
+  (extend-env
+   prim-procs
+   (map (lambda (x) (prim-proc x)) prim-procs)
+   (empty-env)))
 
 (define reset-global-env
   (lambda () (set! global-env (make-init-env))))
 
 ;; Environment Helpers
 
-(define list-find-position
-  (lambda (sym los)
-    (let loop ([los los] [pos 0])
-      (cond [(null? los) #f]
-            [(eq? sym (car los)) pos]
-            [else (loop (cdr los) (add1 pos))]))))
+;; (define list-find-position
+;;   (lambda (sym los)
+;;     (let loop ([los los] [pos 0])
+;;       (cond [(null? los) #f]
+;;             [(eq? sym (car los)) pos]
+;;             [else (loop (cdr los) (add1 pos))]))))
 
 ;; Exvironment Applications
 
@@ -320,19 +335,33 @@
                                  (vector-ref vals pos)
                                  (apply-env env sym)))])))
 
-(define set-ref
-  (lambda (ref val)
-    ))
+(define define-global
+  (lambda (sym val)
+    (cases environment global-env
+      [empty-env-record ()
+                        (error 'define-global "Cannot define values in an empty environment")]
+      [extended-env-record (syms vals env)
+                           (set! syms (vector-extend syms (add1 (vector-length syms)) sym))
+                           (set! vals (vector-extend vals (add1 (vector-length vals)) val))])))
 
-(define extend-env
-  (lambda (syms vals env)
-    (extended-env-record (list->vector syms)
-                         (if (list? vals)
-                             (if (empty? vals)
-                             (make-vector (length syms))
-                             (list->vector vals))
-                             (vector vals))
-                         env)))
+(define set-global
+  (lambda (sym val)
+    (cases environment global-env
+      [empty-env-record ()
+                        (error 'set-global "Cannot set values in an empty environment")]
+      [extended-env-record (syms vals env)
+                           (vector-set! vals (vector-member sym syms) val)])))
+
+(define set-ref
+  (lambda (env sym val)
+    (cases environment env
+      [empty-env-record ()
+                        (set-global sym val)]
+      [extended-env-record (syms vals par-env)
+                           (let ([pos (vector-member sym syms)])
+                             (if (number? pos)
+                                 (vector-set! vals pos val)
+                                 (set-ref par-env sym val)))])))
 
 (define set-env-vals
   (lambda (env clos)
@@ -408,8 +437,9 @@
                             (syntax-expand (cond-exp (cdr test-exps)
                                                      (cdr body-exps))))])]
       [set-exp (id value)
-               (set-exp (syntax-expand id)
-                        (syntax-expand value))]
+               (set-exp id (syntax-expand value))]
+      [define-exp (id value)
+               (define-exp id (syntax-expand value))]
       [else exp])))
 
 ;---------------------------------------+
@@ -522,6 +552,10 @@
               (if (eval-exp env test-exp) (eval-exp env then-exp) (eval-exp env else-exp))]
       [one-if-exp (test-exp then-exp)
                   (when (eval-exp env test-exp) (eval-exp env then-exp))]
+      [define-exp (id expr)
+        (define-global id (eval-exp env expr))]
+      [set-exp (id value)
+        (set-ref env id (eval-exp env value))]
       [else (error 'eval-exp "Bad abstract syntax: ~a" exp)])))
 
 ;-------------------+
@@ -565,10 +599,10 @@
 ; Trace Statements  |
 ;-------------------+
 
-;(trace parse-exp)
-;(trace syntax-expand)
-;(trace eval-exp)
-;(trace set-env-vals)
+(trace parse-exp)
+(trace syntax-expand)
+(trace eval-exp)
+(trace set-env-vals)
 
 ;-------------------+
 ; Y2 additions      |
