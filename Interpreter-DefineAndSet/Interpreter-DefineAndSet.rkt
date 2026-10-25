@@ -302,15 +302,6 @@
 (define reset-global-env
   (lambda () (set! global-env (make-init-env))))
 
-;; Environment Helpers
-
-;; (define list-find-position
-;;   (lambda (sym los)
-;;     (let loop ([los los] [pos 0])
-;;       (cond [(null? los) #f]
-;;             [(eq? sym (car los)) pos]
-;;             [else (loop (cdr los) (add1 pos))]))))
-
 ;; Exvironment Applications
 
 (define apply-global-env
@@ -341,8 +332,13 @@
       [empty-env-record ()
                         (error 'define-global "Cannot define values in an empty environment")]
       [extended-env-record (syms vals env)
-                           (set! syms (vector-extend syms (add1 (vector-length syms)) sym))
-                           (set! vals (vector-extend vals (add1 (vector-length vals)) val))])))
+                           (if (number? (vector-member sym syms))
+                               (set-global sym val)
+                               (set! global-env
+                                     (extended-env-record
+                                      (vector-extend syms (add1 (vector-length syms)) sym)
+                                      (vector-extend vals (add1 (vector-length vals)) val)
+                                      (empty-env))))])))
 
 (define set-global
   (lambda (sym val)
@@ -389,9 +385,12 @@
       [or-exp (exprs)
                (cond [(null? exprs) (lit-exp #f)]
                      [(null? (cdr exprs)) (syntax-expand (car exprs))]
-                     [else (if-exp (syntax-expand (car exprs))
-                                   (syntax-expand (car exprs))
-                                   (syntax-expand (or-exp (cdr exprs))))])]
+                     [else  (syntax-expand
+                             (let-exp (list 'or-temp)
+                                      (list (car exprs))
+                                      (list (if-exp (var-exp 'or-temp)
+                                                    (var-exp 'or-temp)
+                                                    (or-exp (cdr exprs))))))])]
       [lambda-exp (vars bodies)
                   (lambda-exp vars
                               (map syntax-expand bodies))]
@@ -543,7 +542,6 @@
                          [clos-exps (map (lambda (exp) (eval-exp new-env exp)) exps)])
                     (set-env-vals new-env clos-exps)
                     (last (map (lambda (body) (eval-exp new-env body)) bodies)))]
-                    ;(eval-exp (app-exp (lambda-exp names bodies) clos-exps)))
       [app-exp (rator rands)
                (let ([proc-value (eval-exp env rator)]
                      [args (eval-rands env rands)])
@@ -599,10 +597,11 @@
 ; Trace Statements  |
 ;-------------------+
 
-(trace parse-exp)
-(trace syntax-expand)
-(trace eval-exp)
-(trace set-env-vals)
+;(trace parse-exp)
+;(trace syntax-expand)
+;(trace eval-exp)
+;(trace set-env-vals)
+;(trace eval-rands)
 
 ;-------------------+
 ; Y2 additions      |
