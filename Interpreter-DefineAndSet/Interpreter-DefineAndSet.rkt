@@ -32,11 +32,13 @@
       (quoted? expr)
       (void? expr)))
 
-(define (prim-proc? sym)
-  (let ([prim-procs '(+ - * / add1 sub1 cons < > >= = car cdr list zero? null? procedure? assq eq? equal? eqv? atom? length list->vector not
+(define prim-procs
+  '(+ - * / add1 sub1 cons < > >= = car cdr list zero? null? procedure? assq eq? equal? eqv? atom? length list->vector not
                         list? pair? procedure? vector->list vector make-vector vector-ref vector? number? symbol? vector-set! display newline
-                        caar cadr cadar map apply union member product quotient list-tail append)])
-    (ormap (lambda (proc) (eqv? sym proc)) prim-procs)))
+                        caar cadr cadar map apply union member product quotient list-tail append))
+
+(define (prim-proc? sym)
+  (ormap (lambda (proc) (eqv? sym proc)) prim-procs))
 
 ;-------------------+
 ;    Datatype       |
@@ -171,6 +173,10 @@
   (lambda (proc)
     (error 'apply-proc "Attempt to apply bad procedure: ~s" proc)))
 
+(define global-env-err
+  (lambda (sym)
+    (error 'global-env "Not defined in the global environment: ~s" sym)))
+
 ;-------------------+
 ;     Parser        |
 ;-------------------+
@@ -262,13 +268,24 @@
 
 ;; Environment Initializations
 
-(define init-env '())
+(define global-env
+  (extend-env
+   (list->vector prim-procs)
+   (list->vector (map (lambda (x) (prim-proc x)) prim-procs))
+   (empty-env)))
+  
+(define make-init-env
+  (lambda () 
+    (extend-env
+     (list->vector prim-procs)
+     (list->vector (map (lambda (x) (prim-proc x)) prim-procs))
+     (empty-env))))
 
 (define empty-env
   (lambda () (empty-env-record)))
 
 (define reset-global-env
-  (lambda () (set! global-env (init-env))))
+  (lambda () (set! global-env (make-init-env))))
 
 ;; Environment Helpers
 
@@ -282,30 +299,26 @@
 ;; Exvironment Applications
 
 (define apply-global-env
-  (lambda (env sym)
-    (if (prim-proc? sym)
-        (prim-proc sym)
-        (env-err env))))
+  (lambda (sym)
+    (cases environment global-env
+      [extended-env-record (syms vals env)
+                           (let ([pos (vector-member sym syms)])
+                             (if (number? pos)
+                                 (vector-ref vals pos)
+                                 (global-env-err sym)))]
+      [else (global-env-err sym)])))
+
 
 (define apply-env
   (lambda (env sym)
     (cases environment env
       [empty-env-record ()
-                        (apply-global-env env sym)]
+                        (apply-global-env sym)]
       [extended-env-record (syms vals env)
-                           (let ([pos (list-find-position sym (vector->list syms))])
+                           (let ([pos (vector-member sym syms)])
                              (if (number? pos)
-                                 (list-ref (vector->list vals) pos)
+                                 (vector-ref vals pos)
                                  (apply-env env sym)))])))
-
-(define apply-env-ref
-  (lambda (env var)
-    ;vector-member returns index if part of vector
-    ))
-
-(define dereference
-  (lambda (ref)
-    ))
 
 (define set-ref
   (lambda (ref val)
