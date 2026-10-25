@@ -1,7 +1,7 @@
 #lang racket
 
 (require "../chez-init.rkt" racket/trace)
-(provide eval-one-exp y2 advanced-letrec)
+(provide eval-one-exp reset-global-env y2 advanced-letrec)
 
 ;-------------------+
 ; General Helpers   |
@@ -267,6 +267,9 @@
 (define empty-env
   (lambda () (empty-env-record)))
 
+(define reset-global-env
+  (lambda () (set! global-env (init-env))))
+
 ;; Environment Helpers
 
 (define list-find-position
@@ -294,6 +297,19 @@
                              (if (number? pos)
                                  (list-ref (vector->list vals) pos)
                                  (apply-env env sym)))])))
+
+(define apply-env-ref
+  (lambda (env var)
+    ;vector-member returns index if part of vector
+    ))
+
+(define dereference
+  (lambda (ref)
+    ))
+
+(define set-ref
+  (lambda (ref val)
+    ))
 
 (define extend-env
   (lambda (syms vals env)
